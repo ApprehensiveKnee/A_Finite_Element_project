@@ -1,1 +1,2 @@
 # A_Finite_Element_project
+## This project is intended to be a simple,almost naive, and completely self-enclosed implementation for the finite element method to be used to numerically solve numerical elliptic PDEs up to 2D dimensions
