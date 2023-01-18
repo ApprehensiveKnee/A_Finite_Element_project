@@ -142,11 +142,12 @@ for ie=1:ne
 for i=1:npdx
 k=i; ii=nov(k,ie); 
 if(abs(xy(ii,2)-ya)<=1.e-12 ) 
-if cb(1)=='d'
-ifro(ii)=1;
-elseif cb(1)=='n'
-ifro(ii)=31;
-end
+%if cb(1)=='d'
+%ifro(ii)=1;
+%elseif cb(1)=='n'
+%ifro(ii)=31;
+%end
+ifro(ii) = 1; %modified
 end
 end
 
@@ -154,11 +155,12 @@ end
 for j=1:npdy
 k=j*npdx; ii=nov(k,ie); 
 if(abs(xy(ii,1)-xb)<=1.e-12 ) 
-if cb(2)=='d'
-ifro(ii)=1;
-elseif cb(2)=='n'
-ifro(ii)=31;
-end
+%if cb(2)=='d'
+%ifro(ii)=1;
+%elseif cb(2)=='n'
+%ifro(ii)=31;
+%end
+ifro(ii)=2; %modified
 end
 end
 
@@ -167,11 +169,12 @@ nm=npdx*(npdy-1);
 for i=1:npdx
 k=i+nm; ii=nov(k,ie); 
 if(abs(xy(ii,2)-yb)<=1.e-12 ) 
-if cb(3)=='d'
-ifro(ii)=1;
-elseif cb(3)=='n'
-ifro(ii)=31;
-end
+%if cb(3)=='d'
+%ifro(ii)=1;
+%elseif cb(3)=='n'
+%ifro(ii)=31;
+%end
+ifro(ii)=3; %modified
 end
 end
 
@@ -179,36 +182,39 @@ end
 for j=1:npdy
 k=(j-1)*npdx+1; ii=nov(k,ie);
 if(abs(xy(ii,1)-xa)<=1.e-12 )
-if cb(4)=='d'
-ifro(ii)=1;
-elseif cb(4)=='n'
-ifro(ii)=31;
-end
+%if cb(4)=='d'
+%ifro(ii)=1;
+%elseif cb(4)=='n'
+%ifro(ii)=31;
+%end
+ifro(ii)=4; %modified
 end
 end
 % check vertices: if vertex V belongs to two sides with different (N/D)
 %boundary conditions, dirichlet b.c. prevails.
 
+%modified: the vertex belongs to the correspective edge
+
 % V1
-ip=nov(1,ie);
-if ifro(ip)>0 & cb(1)~=cb(4)
-ifro(ip)=1;
-end
+%ip=nov(1,ie);
+%if ifro(ip)>0 & cb(1)~=cb(4)
+%ifro(ip)=1;
+%end
 % V2
-ip=nov(npdx,ie);
-if ifro(ip)>0 & cb(1)~=cb(2)
-ifro(ip)=1;
-end
+%ip=nov(npdx,ie);
+%if ifro(ip)>0 & cb(1)~=cb(2)
+%ifro(ip)=2;
+%end
 % V3
-ip=nov(ldnov,ie);
-if ifro(ip)>0& cb(2)~=cb(3)
-ifro(ip)=1;
-end
+%ip=nov(ldnov,ie);
+%if ifro(ip)>0& cb(2)~=cb(3)
+%ifro(ip)=3;
+%end
 % V4
-ip=nov(ldnov-nx,ie);
-if ifro(ip)>0& cb(4)~=cb(3)
-ifro(ip)=1;
-end
+%ip=nov(ldnov-nx,ie);
+%if ifro(ip)>0& cb(4)~=cb(3)
+%ifro(ip)=4;
+%end
 
 
 % end loop for ie=1:ne

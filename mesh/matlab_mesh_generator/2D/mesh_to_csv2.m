@@ -1,4 +1,8 @@
-
+%MODIFIED::
+% With respect to the original version provided by Gervasio, in this case
+% ifro returns the edge on which we can find a spefic node, while the
+% the d.c. are given directly inside the C++ code for which this script mesh is
+% used...
 % Input: xa= abscissa of either vertex V1 or vertex V4
 %        xb= abscissa of either vertex V2 or vertex V3
 %        ya= ordinate of either vertex V1 or vertex V2
@@ -40,25 +44,24 @@
 %         xy = column array with global mesh, length: noe=nov(npdx*npdy,ne)
 %         ww = column array with global weigths, length: noe=nov(npdx*npdy,ne)
 %              diag(ww) is the mass matrix associated to SEM discretization
-%         ifro = column array of length noe=nov(npdx*npdy,ne): 
-%            if (x_i,y_i) is internal to Omega then ifro(i)=0,
-%            if (x_i,y_i) is on \partial\Omega and Dirichlet boundary
-%            condition is imposed there, then ifro(i)=1,
-%            if (x_i,y_i) is on \partial\Omega and Neumann boundary
-%            condition is imposed there, then ifro(i)=31,
+%         ifro = 0 if node is internal
+%                1 if node is on edge 1
+%                2 if node is on edge 2
+%                3 if node is on edge 3
+%                4 if node is on edge 4
 
 clear all;
 close all;
 clc;
 
 xa = 0;
-xb = 100;
+xb = 1;
 ya = 0;
-yb = 100;
+yb = 1;
 cb = strings(4,1);
 cb(1)= 'd';cb(2)= 'd' ;cb(3)= 'd' ; cb(4)= 'd'; 
-nex = 12;
-ney = 12;
+nex = 10;
+ney = 10;
 npdx = 2;
 npdy = 2;
 %as to why the number of nodes per element along a specific dimension has
@@ -80,9 +83,9 @@ gammay=[];
 ne = nex*ney;
 noe=nov(npdx*npdy,ne);
 
-numbers = [noe, ne];
+numbers = [noe, nex, ney];
 T = array2table(numbers);
-T.Properties.VariableNames(1:2) = {'Number of total nodes','Number of total elements'};
+T.Properties.VariableNames(1:3) = {'Number of total nodes','Number of total elements x axis', 'Number of total elements y axis'};
 writetable(T,'numbers.csv');
 
 
@@ -92,7 +95,7 @@ nodes(:,2:3) = xy;
 nodes(:,4)=ifro;
 
 T = array2table(nodes);
-T.Properties.VariableNames(1:4) = {'node_id','node_coordinate_x', 'node_coordinate_y', 'boundary'};
+T.Properties.VariableNames(1:3) = {'node_id','node_coordinate_x', 'node_coordinate_y'};
 writetable(T,'nodes_coordinates.csv')
 %write elements_vertexes.csv (each vertex inside each element)
 %for this purpose the original mesh_1d function as been sligthly modified
