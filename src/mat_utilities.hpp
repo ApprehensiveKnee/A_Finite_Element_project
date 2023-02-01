@@ -1,3 +1,8 @@
+
+//=================================================================
+// HEADER FILE FOR THE CLASS QUADRATURE AND FE SPECTRAL DEFINITIONS
+//=================================================================
+
 #ifndef UTIL
 #define UTIL
 
@@ -7,6 +12,7 @@
 #include <tuple>
 #include <type_traits>
 #include "elements.hpp"
+#include "mesh.hpp"
 
 
 //______________________________________________________________
@@ -14,6 +20,7 @@
 
 namespace Functions
 {
+    
     //Pure class for scalar function taking values in 2D domains
     class Function
     {
@@ -74,7 +81,7 @@ namespace Functions
         virtual double
         value(const Point & p) const override
         {
-            return (20*M_PI*M_PI + 1)*std::sin(2*M_PI*p.getX())+std::sin(4*M_PI*p.getY());
+            return (20*M_PI*M_PI + 1)*std::sin(2*M_PI*p.getX())*std::sin(4*M_PI*p.getY());
         }
     };
 
@@ -200,71 +207,303 @@ namespace FETools
         // A member function to evaluate Legendre polynomials of degree n at x coordinates, using the three term relation
         static void legendre_pol(const std::vector<double> &x, const unsigned int &n, std::vector<double> &pol);
 
+
         // A member function to evaluate the nodes and weights of the Legendre Gauss Lobatto formulae on the interval [-1, 1];
+        // the solution is then stored inside the _nodes and _weights members
         void LGL_quadratures(const unsigned int &n/*number of nodes*/);
 
         // A member function to evaluate the nodes and weights of the Legendre Gauss Lobatto formulae on the interval [a, b];
         void LGL_quadratures(const unsigned int &n/*number of nodes*/,const double &a, const double &b);
 
+
+
         // standard getters
-        std::vector<double> getN() const;
-        std::vector<double> getW() const;
+        const std::vector<double>& getN() const;
+        const std::vector<double>& getW() const;
 
         ~Quadrature() = default;
     };
 
 
 
+
+
     template <class ElementType>
     class SpectralFE
     {
-    private:
+    public:
+
+        //  ==========================================================================
+        // CUSTOM CLASSSES TO IMPLEMENT MATRIX FREE MATRIX PRODUCT ON THE CELL MATRIXES
+        //  ==========================================================================
+        // since Bref_cell,J_cell and D_cell are made up of copies of the same values repeated in certain positions,
+        // this lets us compute the matrix products in a more efficent way simply by accessing the Jacobian of the element
+        // D_ref, e Bx_ref/ By_ref
+        
+
+        //  Class for Bref_cell extention form Bx_ref and By_ref
+        template<typename Derived>
+        class ExtentB: public Eigen::EigenBase<Derived>
+        {
+        public:
+            ExtentB() = default;
+            ExtentB(const std::array<SparseMatrix<double>,DIM>& B, const std::array<unsigned int, DIM>& nq, const unsigned int& re = r)
+            : _B(B),
+            _nq(nq),
+            _r(re)
+            {}
+
+            int rows() const
+            {
+                return DIM * _nq[0] * (DIM==2?_nq[DIM-1]:1)/*DIM * n_q*/;
+            }
+
+            int cols() const
+            {
+                // REMARK:
+                // dofs per cell and number of quadrature points are supposeed to be the same, still
+                // this implementation better explains how the B matrix is built (even though it may take slightly more time and resources)
+                return DoFHandler(_r).dof_per_cell() /* dof_per_cell */;
+            }
+
+            // Return sub-matrix in each iteration
+            double operator()(const int& i/* nqx*nqy*DIM*/, const int& j/*nqx*nqy*/) const
+            {
+                // REMARK
+                // Here again, we could have just used a single variable, yet for better clarity, the choice was
+                // to "keep the dimensions separated"
+                const unsigned int dofx = DoFHandler(_r).getDeg()[0] +1;
+                const unsigned int dofy = DoFHandler(_r).getDeg()[1] +1 ;
+
+                if constexpr(DIM == 2)
+                {
+                    // lines of Bx_ref
+                    if(i%2 == 0 /*even rows (x dedicated)*/)
+                    {
+                        if((i>>1)/_nq[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
+                            return _B[0].coeff((i/2)%_nq[0],j%dofx);
+                        else 
+                            return 0.;
+                    }
+                    // lines of By_ref
+                    else /*odd rows*/
+                    {
+                        if((i>>1)%_nq[1] == j%dofy) // i and j indexing on an elemente on the diagonal block
+                            return _B[1].coeff((i>>1)/_nq[1], j/dofy);
+                        else 
+                            return 0.;
+                    }
+
+                }
+                else
+                {
+                    if(i/_nq[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
+                            return _B[0].coeff(i%_nq[0],j%dofx);
+                        else 
+                            return 0.;
+                } 
+                    
+            }
+
+            double transpose(const int& i/* nqx*nqy*DIM*/, const int& j/*nqx*nqy*/) const
+            {
+                return this->operator()(j,i);
+                    
+            }
+
+
+        private:
+            const std::array<SparseMatrix<double>,DIM>& _B;
+            const std::array<unsigned int,DIM>& _nq;
+            const unsigned int& _r;
+        };
+
+        //  Class for D_cell extension form D_ref matrix
+        
+        template<typename Derived>
+        class ExtentD: public Eigen::EigenBase<Derived>
+        {
+        public:
+            ExtentD() = default;
+            ExtentD(const SparseMatrix<double> &A)
+            : _A(A)
+            {}
+
+
+            int rows() const
+            {
+                return _A.rows() * DIM;
+            }
+
+            int cols() const
+            {
+                return _A.cols() * DIM;
+            }
+
+            // Return sub-matrix in each iteration
+            double operator()(const int& i, const int& j) const
+            {
+                if( i == j)
+                    return _A.coeff(i/DIM, j/DIM);
+                else
+                    return 0.;
+            }
+
+            // Operator * overloading to support multiplication with custom expression class (coeff * D_ref)
+            SparseMatrix<double> operator*(const double& coeff) const
+            {
+                SparseMatrix<double> result(this->rows(), this->rows());
+
+                for (int i = 0; i < this->rows(); ++i)
+                        result.coeffRef(i, i) += coeff * this->operator()(i, i);
+
+                return result;
+            }
+
+        private:
+            const SparseMatrix<double>& _A;
+        };
+
+        //  Class for J_cell extention from Jacobian of the element
+        template<typename Derived>
+        class ExtentJ: public Eigen::EigenBase<Derived>
+        {
+        public:
+            ExtentJ() = default;
+            ExtentJ(const MatrixXd &A, const unsigned int& nq)
+            : _A(A),
+            _nq(nq)
+            {}
+
+            int rows() const
+            {
+                return _A.rows()*_nq;
+            }
+
+            int cols() const
+            {
+                return _A.cols()*_nq;
+            }
+
+            // Return sub-matrix in each iteration
+            double operator()(const int& i, const int& j) const
+            {
+
+                if constexpr(DIM == 2)
+                {
+
+                    if(i%2 == 0 /* row is even*/)
+                    {
+                        if(j%2 == 0 /*col is even*/ && i == j /*on the diagonal*/ )
+                        {
+                            return _A(0, 0);
+                        }
+                        else if(j%2 == 1 /*col is */ && j == i+1 /*on the upper diagonal*/)
+                        {
+                            return _A(0,1);
+                        }
+                        else
+                            return 0.;
+                    }
+                    else /*row is odd*/
+                    {
+                        if(j%2 == 0 /*col is even*/ && j == i-1 /*on the lower diagonal*/)
+                        {
+                            return _A(1, 0);
+                        }
+                        else if(j%2 == 1/*col is odd*/ && j == i/*on the diaglona*/)
+                        {
+                            return _A(1,1);
+                        }
+                        else
+                            return 0.;
+                    }
+
+                }
+                else
+                {
+                    if(i == j /*on the diagonal*/)
+                        return _A(0,0);
+                }
+                    
+            }
+
+            // Operator * overloading to support multiplication with custom expression class (J_cell^invT * B_cell)
+            MatrixXd operator*(const ExtentB<SparseMatrix<double>> &B) const
+            {
+
+                SparseMatrix<double> result(this->rows(), B.cols());
+                for (int i = 0; i <this->rows(); ++i)
+                {
+                    for (int j = 0; j < B.cols(); ++j)
+                    {
+                        for (int k = 0; k < this->cols(); ++k)
+                            result.coeffRef(i, j) += this->operator()(i, k) * B(k, j);
+                    }
+
+                }
+                return result;
+            }
+
+
+            double transpose(const int& i, const int& j) const
+            {
+                return this->operator()(j,i);
+            }
+
+
+        private:
+            const MatrixXd& _A;
+            const unsigned int _nq;
+        };
 
         
-        //first, the element currently considered
-        ElementType _current_elem;
-        //to compute the quadrature coordinates and weights necessary
-        Quadrature _qr;
-        //the degree of the FE space considered  --> number of quadrature nodes per each direction of the element
-        const unsigned int _r;
-        //a vector containig the quadrature points of the elements
-        std::vector<Point> _quad_points;
-        //a vector containing the quadrature wights for the quadrature points
-        std::vector<double> _quad_weights;
-        //a vector containing the nodes of the element
-        std::vector<Point> _int_nodes;
-        // a counter to specify the element of the mesh currently examined
-        unsigned int pun;
+
+        //  ==========================================================================
 
 
-    public:
+
+
         //constructor
-        SpectralFE(const unsigned int &r)
-            :_current_elem(),
-            _qr(),
-            _r(r),
-            _quad_points(),
-            _quad_weights(),
-            _int_nodes(),
-            pun(0)
-            {};
+        SpectralFE(const unsigned int &re = r,
+                   const unsigned int &nqx = r + 1,
+                   const unsigned int &nqy = r + 1)
+            : _current_elem(),
+              _qr(),
+              _r(re),
+              _nq(classInit(nqx, nqy)),
+              _quad_points(),
+              _D_ref(nqx * DIM==2?nqy:1 /* n_q */, nqx * DIM==2?nqy:1 /* n_q */),
+              _B_ref(classInit(nqx, nqy, r)), // dof_per_cell = n_q
+              _J_invT(DIM, DIM),
+              _Dcell(_D_ref),
+              _Jcell_invT(_J_invT, _nq[0]*((DIM==2)?_nq[DIM-1]:1)),
+              _Bcell(_B_ref, _nq, _r),
+              pun(0){};
 
-        SpectralFE(const ElementType& element, const unsigned int &r)
-            :_current_elem(element),
-            _qr(),
-            _r(r),
-            _quad_points(),
-            _quad_weights(),
-            _int_nodes(),
-            pun(0)
-            {};
+        SpectralFE(const ElementType &element,
+                   const unsigned int &re = r,
+                   const unsigned int &nqx = r + 1,
+                   const unsigned int &nqy = r + 1)
+            : _current_elem(element),
+              _qr(),
+              _r(r),
+              _nq(classInit(nqx, nqy, r)),
+              _quad_points(),
+              _D_ref(nqx * DIM == 2 ? nqy : 1 /* n_q */, nqx * DIM == 2 ? nqy : 1 /* n_q */),
+              _B_ref(classInit(nqx, nqy)), // dof_per_cell = n_q
+              _J_invT(DIM, DIM),
+              _Dcell(_D_ref),
+              _Jcell_invT(_J_invT, _nq[0]*(DIM==2)?_nq[DIM-1]:1),
+              _Bcell(_B_ref, _nq, _r),
+              pun(0){};
         //standar getters
         const ElementType& getCurrent() const
         {
             return _current_elem;
         };
 
-        const Quadrature& getQuad() const
+        const std::array<Quadrature, DIM>& getQuad() const
         {
             return _qr;
         };
@@ -274,35 +513,64 @@ namespace FETools
             return _r;
         };
 
+        const std::array<unsigned int, DIM>& getNQ() const
+        {
+            return _nq;
+        }
+
+        void setNQ(const std::array<unsigned int,DIM>& exactness)
+        {
+            _nq = exactness;
+            return;
+        }
+
         const std::vector<Point>& getQPoints() const
         {
             return _quad_points;
         };
 
-
-        const std::vector<Point>& getINodes() const
+        const SparseMatrix<double>& getD() const
         {
-            return _int_nodes;
-        };
+            return _D_ref;
+        }
 
-        const std::vector<double>& getWeights() const
+        const std::array<SparseMatrix<double>, DIM>& getB( ) const
         {
-            return _quad_weights;
-        };
+            return _B_ref;
+        }
+
+        const MatrixXd& getJ() const
+        {
+            return _J_invT;
+        } 
+
+        const ExtentD<SparseMatrix<double>>& D_cell() const
+        {
+            return _Dcell;
+        }
+
+        const ExtentJ<MatrixXd>& J_cell_invT() const
+        {
+            return _Jcell_invT;
+        }
+
+        const ExtentB<SparseMatrix<double>>& B_cell() const
+        {
+            return _Bcell;
+        }
+
+        double detJ() const
+        {
+            if constexpr(DIM == 2)
+                return _current_elem.jacobian().determinant();
+            else
+                return _current_elem.jacobian();
+            
+        }
 
         const unsigned int& getPun() const
         {
             return pun;
-        };
-
-        
-        // a method to compute the number of degree of freedom per element
-        unsigned int dof_per_cell() const
-        {   
-            if constexpr (DIM == 2)
-                return _current_elem.internalN(this->getDeg())*_current_elem.internalN(this->getDeg());
-            else
-                return _current_elem.internalN(this->getDeg());
         };
 
         // a method to move up on the examination and computation of local matrixes
@@ -346,145 +614,132 @@ namespace FETools
         void update_current( const ElementType &geoele )
         {
             _current_elem = geoele;
-            _update_quad();
-            _update_nodes();
+            this->_update_quad();
+            // update the Jacobian
+            this->_update_J();
+            if(_current_elem.getNQ() == this->getNQ())
+            {
+                return;
+            }
+            else
+            {
+                //update the degree of exactenss for the quadrature on the current element
+                this->setNQ(_current_elem.getNQ());
+                // update the evaluation of quadrature points
+                this->_update_D();
+                if constexpr (DIM ==2)
+                {
+                    
+                    
+                    // In this case, recompute Bx
+                    if(_current_elem.getNQ()[0] != this->getNQ()[0])
+                    {
+                        this->_update_B(0);
+                    }
+                    // In this case, recompute By
+                    if(_current_elem.getNQ()[1] != this->getNQ()[1])
+                    {
+                        this->_update_B(1);
+                    }
+                    //update quadrature nodes and weights, as well as the degree
+
+                }
+
+            }
+            
             return;
         };
 
+        // a method to update first set the reference matrixes
+        void set()
+        {
+            // First initialization of the reference matrixes
+            this->_update_D();
+            this->_update_B(0);
+            this->_update_B(1);
+            return;
+        }
         
         // member function to map the quadrature points on to the specific element
-        // 2D CASE
-        Point quadrature_point(const unsigned int &q) const
+        Point quadrature_point(const unsigned int &q,const DoFHandler& dof) const
         {
-            if constexpr (DIM == 2)
-            {
-                double x, y;
-                std::tie(x,y) = _current_elem.direct_map((this->getQPoints()[q]).getX(),(this->getQPoints()[q]).getY());
-                Point my_point(x,y);
-                return my_point;
-            }
-            else
-            {
-                double x;
-                x = _current_elem.direct_map((this->getQPoints()[q]).getX());
-                Point my_point(x);
-                return my_point;
-            }
+
+            //  FIRST APPROACH:
+            // compute the quadrature point usinge the direct map function with the quadrature pointson the reference element
+
+            // if constexpr (DIM == 2)
+            // {
+            //     double x, y;
+            //     std::tie(x,y) = _current_elem.direct_map((this->getQPoints()[q]).getX(),(this->getQPoints()[q]).getY());
+            //     Point my_point(x,y);
+            //     return my_point;
+            // }
+            // else
+            // {
+            //     double x;
+            //     x = _current_elem.direct_map((this->getQPoints()[q]).getX());
+            //     Point my_point(x);
+            //     return my_point;
+            // }
+
+            //  SECOND APPROACH
+            // get the quarature point for the global mesh computed by a DoFHandler object ALREADY INITIALISED
+            
+            // using the index of the element currently considered, get the coordinates of the quadrature points
+            
+            return dof.getPoints()[dof.getMap()[q][this->getCurrent().getId()-1]-1];
+
+            // this second approach requires the elements to each have the same number of quadarture points, but,
+            // on the other hand, prevents us from performing refìdundant computation
+            
             
         };
+
         
-        // member functions to compute the basis functions and gradient
-        
-        double shape_value(const unsigned int &i /*index of the quadrature node*/,
-                        const unsigned int &q /*index of the quadrature point of which we compute the evaluation*/) const
-        {
-            if constexpr (DIM == 2)
-            {
-                //first we get the node of the element represented by the index i, using the internal standard node numbering:
-                // we do so by looking into the _int_nodes member, containing the coordiates of all the internal nodes of the current element
-                // and we get the funtion to evaluate the basis function in a certain point (quadrature points)
-                auto phi_i =FETools::SpectralFE<ElementType>::phi((this->getINodes())[i].getX(),(this->getINodes())[i].getY(),this->getDeg()+1);
-
-                //now we evaluate the basis function over the quadrature point
-
-                return phi_i((this->getQPoints())[q].getX(),(this->getQPoints())[q].getY()) > tol? phi_i((this->getQPoints())[q].getX(),(this->getQPoints())[q].getY()): 0;
-            }
-            else
-            {
-                //corresponding 1D case using lagrangiang basis functions
-                auto phi_i =FETools::SpectralFE<ElementType>::lagrange_pol((this->getINodes())[i].getX(),this->getDeg()+1);
-                return phi_i((this->getQPoints())[q].getX()) > tol? phi_i((this->getQPoints())[q].getX()):0;
-            }
-            
-        }
-
-        VectorXd shape_grad(const unsigned int &i /*index of the quadrature node*/,
-                            const unsigned int &q /*index of the quadrature point of which we compute the evaluation*/) const
-        {
-            if constexpr (DIM == 2)
-            {
-                //first we get the node of the element represented by the index i, using the internal standard node numbering:
-                // we do so by looking into the _int_nodes member, containing the coordiates of all the internal nodes of the current element
-                // we then get the funtion to evaluate the derivative of the basis function in a certain point (quadrature points)
-                auto dphi_i =FETools::SpectralFE<ElementType>::dphi((this->getINodes())[i].getX(),(this->getINodes())[i].getY(),this->getDeg()+1);
-
-                // now we evaluate the partial derivatives of the basis function over the quadrature point
-
-                VectorXd grad(2);
-                grad[0]= dphi_i((this->getQPoints())[q].getY(),(this->getQPoints())[q].getX())>inf?dphi_i((this->getQPoints())[q].getY(),(this->getQPoints())[q].getX()):inf, // d_phi(x_p,y_p)/dx
-                grad[1]= dphi_i((this->getQPoints())[q].getX(),(this->getQPoints())[q].getY())>inf?dphi_i((this->getQPoints())[q].getX(),(this->getQPoints())[q].getY()):inf; // d_phi(x_p,y_p)/dy
-                //return grad;
-                //se ritornassimo direttamente grad, questo corrisponderebbe a una valutazione della derivata della funzione di base
-                //sull'elemento di riferimento. Ma bisogna poi ancora considerare la mappatura sull'elemento specifico
-                if(grad.norm()>tol)
-                    return (this->_J_inv_t())*grad;
-                else 
-                    return VectorXd::Constant(2, 0);
-
-            }
-            else
-            {
-                //corresponding 1D case
-                auto dphi_i = FETools::SpectralFE<ElementType>::lagrange_der((this->getINodes())[i].getX(),this->getDeg()+1);
-                VectorXd grad(1);
-                grad[0]= dphi_i((this->getQPoints())[q].getX())?dphi_i((this->getQPoints())[q].getX()):inf; // dphi(x_q)/dx
-                if(grad.norm() > tol)
-                    return (this->_J_inv_t())*grad;
-                else 
-                    return VectorXd::Constant(1, 0);
-            }
-            
-        };
-        //member functions to compute the product of J and quadrature weights
-        double JxW(const unsigned int &q /*quadratue point associated to the weight*/) const
-        {
-            //firstly, let's compute the determinant of the jacobian
-            return (this->getWeights()[q]*(this->_det_J()));
-            
-        };
         //default destructor
         ~SpectralFE() = default;
 
-    //private:
+    private:
         
         //firstly, a method to compute the coordinates and  weithts of the quadrature points along a certain dimension
         //used to approximate integrals on the current element
-        std::vector<double> _comp_quad_c()
+        std::vector<double> _comp_quad_c(const unsigned short& dir)
         {
-            _qr.LGL_quadratures(this->getDeg()+1);
-            return _qr.getN();
+            _qr[dir].LGL_quadratures(this->getNQ()[dir]);
+            return _qr[dir].getN();
         };
 
-        std::vector<double> _comp_quad_w()
+        std::vector<double> _comp_quad_w(const unsigned short& dir)
         {
-            _qr.LGL_quadratures(this->getDeg()+1);
-            return _qr.getW();
+            
+            _qr[dir].LGL_quadratures(this->getNQ()[dir]);
+            return _qr[dir].getW();
         };
 
         // a method to update the vector of quadrature points for the current element
-        // 2D CASE
         void _update_quad()
         {
             // delete the quadrature coordinates of the past element
             // OSS. in this case, the degree of the FE spaces along the two dimensions
-            // are supposed to be the same and identical to _r member. Furthermore, 
+            // are supposed to be the same and identical to the _r member. Furthermore, 
             //for each element, the number of quadrature points is supposed to be the same:
             // the quadrature points are computed over the refence element [-1,1]*[-1,1],
             // as such the updated quadrature points and weights will always be the same for every element--> REDUNDANT WORK.
             // Yet, in the case we would like to change the degree of the quadrature formula over a
-            // specific element, this function would make this process possible and less difficult to implement
+            // specific element, this function would make this process possible and less difficult to implement.
+            // For those reasons, the _update_quad() method is called only in the case the _n member of the element
+            // is different from the one of the previous element. Such check is implemented in the update_current() method
             if constexpr (DIM == 2)
             {
-
+                //update the quadrature points over the reference element
                 {
                     _quad_points.clear();
-                    auto temp = this->_comp_quad_c();
 
                     //loop over y coordinate
-                    for(auto j : temp)
+                    for(auto j : this->_comp_quad_c(1))
                     {
                         //loop over x coordinate
-                        for(auto i : temp)
+                        for(auto i : this->_comp_quad_c(0))
                         {
                             Point my_point(i,j);
                             _quad_points.emplace_back(my_point);
@@ -493,31 +748,18 @@ namespace FETools
 
                 }
                 
-                {
-                    _quad_weights.clear();
-                    std::vector<double> temp = this->_comp_quad_w();
-                    //loop over the y coordinate
-                    for(auto j : temp)
-                    {
-                        //loop over x coordinate
-                        for(auto i : temp)
-                        {
-                            _quad_weights.emplace_back(i*j);
-                        }
-                    }
-
-                }
+                
 
             }
             else
             {
+                // Update the quadrature points over the reference element
 
                 {
                     _quad_points.clear();
-                    auto temp = this->_comp_quad_c();
 
                     //loop over x coordinate
-                    for(auto i : temp)
+                    for(auto i : this->_comp_quad_c(0))
                     {
                         Point my_point(i);
                         _quad_points.emplace_back(my_point);
@@ -525,344 +767,175 @@ namespace FETools
 
                 }
                 
-                {
-                    _quad_weights.clear();
-                    std::vector<double> temp = this->_comp_quad_w();
-                    //loop over x coordinate
-                    for(auto i : temp)
-                    {
-                        _quad_weights.emplace_back(i);
-                    }
-
-                }
+                
 
             }
             
 
             return;
         };
-        // a method to update the vector of nodes within the current element;
-        // 2D CASE
-        void _update_nodes()
+        
+        // a method to update the D_ref matrix
+        void _update_D()
         {
-            if constexpr(DIM ==2)
+            // Clear _D_ref and resize
+            _D_ref.resize(_nq[0]*((DIM ==2)?_nq[DIM-1]:1),_nq[0]*((DIM==2)?_nq[DIM-1]:1));
+            // Compute the quadrature nodes on the quadrature points and insert them in D
+            unsigned int index = 0;
+
+            if constexpr(DIM == 2)
             {
-
-                //delete the nodes of the past element
-                _int_nodes.clear();
-                //compute the internal nodes
-
-                // ---->  _current_elem.getNodes()[0].printNode();
-                auto internal_nodes_x = _current_elem.getNodes()[0].nodes(_r, _current_elem.getNodes()[1]);
-                auto internal_nodes_y = _current_elem.getNodes()[0].nodes(_r, _current_elem.getNodes()[2]);
-                //loop over y_coordinate
-                for( auto j : internal_nodes_y)
+                //loop over the y coordinate
+                for(auto j : this->_comp_quad_w(1))
                 {
                     //loop over x coordinate
-                    for( auto i : internal_nodes_x)
+                    for(auto i : this->_comp_quad_w(0))
                     {
-                        // since we need the coordinates of the nodes over the reference element,
-                        // for each node we apply the inverse affine transformation
-                        double r,s;
-                        std::tie(r,std::ignore) = _current_elem.inverse_map(i[0],i[1]);
-                        if(std::abs(r) < tol) r= 0;
-                        std::tie(std::ignore, s) = _current_elem.inverse_map(j[0],j[1]);
-                        if(std::abs(s) < tol) s = 0;
-                        Point my_point(r,s);
-                        _int_nodes.emplace_back(my_point);
+                        _D_ref.coeffRef(index,index)=(i*j);
+                        index++;
                     }
                 }
 
             }
             else
             {
-
-                //delete the nodes of the past element
-                _int_nodes.clear();
-                //compute the internal nodes
-
-                // ---> _current_elem.getNodes()[0].printNode();
-                auto internal_nodes_x = _current_elem.getNodes()[0].nodes(_r, _current_elem.getNodes()[1]);
-                //loop over x_coordinate
-                for( auto i : internal_nodes_x)
+                //loop over the x coordinate
+                for(auto i : this->comp_quad_w(0))
                 {
-                    
-                    // since we need the coordinates of the nodes over the reference element,
-                    // for each node we apply the inverse affine transformation
-                    double r = _current_elem.inverse_map(i[0]);
-                    Point my_point(r);
-                    _int_nodes.emplace_back(my_point);
-
+                    _D_ref.coeffRef(index,index)=(i);
+                    index++;
                 }
+
             }
             
+
+            return;
+        }
+
+        // a method to update the Bx_ref and By_ref matrix:
+        // i.e. to compute the spectral Legendre Gauss Lobatto derivative matrix d at the np LGL nodes x (on [-1,1]),
+        // please note: this function needs the correct values of the  quadrature point on the 1D reference interval to work correctly,
+        // as such it is necessary to update the nodes of the Quadrature object before computing the matrix. This is, if the number of quadrature points
+        // changed between the dimensions inside a certain element or between elements
+        void _update_B( const unsigned int& dir)
+        {
+            std::vector<double> x = this->_comp_quad_c(dir);
+            unsigned int np = x.size();
+            
+            // First of all, as a precautionary measure, we erase the content of the _der_matrix member
+            _B_ref[dir].resize(this->getNQ()[0],this->getNQ()[0]);
+            const unsigned int n = np -1;
+            const unsigned int dof = DoFHandler(this->getDeg()).getDeg()[dir] + 1;
+            std::vector<double> lnx(np);
+            //compute the legendre polynomials over the LGL nodes
+            FETools::Quadrature::legendre_pol(x, n, lnx);
+            for(unsigned int j = 0; j < dof ; j++)
+            {
+                for(unsigned int i = 0; i < np; ++i)
+                {
+                    if(i != j)
+                    {
+                        _B_ref[dir].coeffRef(i,j) = lnx[i]/((x[i]-x[j])*lnx[j]);
+                    }
+                }
+            }
+            _B_ref[dir].coeffRef(0,0) = -0.25*n*np;
+            _B_ref[dir].coeffRef(np-1,np-1) = 0.25*n*np;
+        
+            
+
+            return;
+
+        }
+        
+        /// a method to update the jacobian of the current element
+        void _update_J()
+        {
+            if constexpr(DIM == 2)
+            {
+                _J_invT.resize(DIM, DIM);
+                _J_invT = _current_elem.jacobian().inverse().transpose();
+
+            }
+            else
+            {
+                _J_invT.resize(DIM,DIM);
+                _J_invT << 1/_current_elem.jacobian();
+            }
+                
             return;
         };
 
-
-        
-        //some methods to compute the algebraic objects necessary to compute the elements of the local matrix
-        // - the jacobian
-        // - its determinant
-        // - the inverse of the jacobian
-        // - the inverse transpose of the jacobian
-
-        MatrixXd _J() const
+        // a method for simple class initialization
+        std::array<unsigned int, DIM> classInit(const unsigned int& nx,const unsigned int& ny)
         {
-            if constexpr(DIM == 2)
-                return _current_elem.jacobian();
+            if constexpr (DIM == 2)
+            {
+                return {nx,ny};
+            }
             else
             {
-                MatrixXd J(1,1);
-                J << _current_elem.jacobian();
-                return J;
-
+                return {nx};
             }
-
-            
-        };
-        double _det_J() const
-        {
-            if constexpr(DIM == 2)
-                return _current_elem.jacobian().determinant();
-            else
-                return _current_elem.jacobian();
-            
         }
-        MatrixXd _J_inv() const
+
+        std::array<SparseMatrix<double>, DIM> classInit(const unsigned int& nqx, const unsigned int& nqy, const unsigned int& re )
         {
-            if constexpr(DIM == 2)
-                return _current_elem.jacobian().inverse();
+            // Instantiate a dof handler object to get the dof number
+            unsigned int dof(DoFHandler(re).dof_per_cell());
+            if constexpr (DIM == 2)
+            {
+                return {SparseMatrix<double>(nqx,dof),SparseMatrix<double>(nqy,dof)};
+            }
             else
             {
-                MatrixXd J(1,1);
-                J << _current_elem.jacobian();
-                J.inverse();
-                return J;
-
+                return {SparseMatrix<double>(nqx,dof)};
             }
-            
         }
-        MatrixXd _J_inv_t() const
-        {
-            if constexpr(DIM == 2)
-                return _current_elem.jacobian().inverse().transpose();
-            else
-            {
-                MatrixXd J(1,1);
-                J << _current_elem.jacobian();
-                J.inverse();
-                // transposition doesn't affect the matrix
-                return J;
 
-            }
-            
-        }
+
+    private:
 
         
-        
-        //function for legendre polynomilas and first derivative (iterative)
-        static std::tuple<std::function <double(const double &)> ,std::function <double(const double &)>>legendre_pol(const unsigned int &n)
-        {
-            //legendre polynomial of degree 1 and derivative
-            std::function <double(const double &)> l1 = [](const double &x){return x;};
-            std::function <double(const double &)> l1d = [](const double &x){return 1.;};
-            //legendre polynomial of degree 0 and derivative
-            std::function <double(const double &)> l0 = [](const double &x){return 1.;};
-            std::function <double(const double &)> l0d = [](const double &x){return 0.;};
-
-            std::function <double(const double &)> ln;
-            std::function <double(const double &)> lnd;
-            if(n == 0){
-                return {l0,l0d};
-            }
-            else if(n == 1)
-            {
-                return {l1,l1d};
-            }
-            for(unsigned int k = 1; k < n; ++k){
-                //iteratively contrusct the legendre polynomial of order k +1 <= n (Ln(x)) and derivative ((Ln)'(x))
-                ln = [k, l1, l0](const double &x){return (((2*k + 1)*x*l1(x) - k*l0(x))/(k+1));};
-                lnd = [k, l1, l1d, l0d](const double &x){return (((2*k + 1)*(x*l1d(x) + l1(x)) - k*l0d(x))/(k+1));};
-
-                //update the previous polynomials and correspective derivatives
-                l0 = [l1](const double &x){return l1(x);};
-                l0d = [l1d](const double &x){return l1d(x);};
-                l1= [ln](const double &x){return ln(x);};
-                l1d= [lnd](const double &x){return lnd(x);};
-                
-            }
-            return {ln,lnd};
-                
-        };
-
-        //function for legendre polynomilas, first and second order derivative (iterative)
-        static std::tuple<std::function <double(const double &)> ,std::function <double(const double &)>, std::function <double(const double &)>>legendre_der(const unsigned int &n)
-        {
-            //legendre polynomial of degree 1 and derivative
-            std::function <double(const double &)> l1 = [](const double &x){return x;};
-            std::function <double(const double &)> l1d = [](const double &x){return 1.;};
-            std::function <double(const double &)> l1dd = [](const double &x){return 0.;};
-            //legendre polynomial of degree 0 and derivative
-            std::function <double(const double &)> l0 = [](const double &x){return 1.;};
-            std::function <double(const double &)> l0d = [](const double &x){return 0.;};
-            std::function <double(const double &)> l0dd = [](const double &x){return 0.;};
-
-            std::function <double(const double &)> ln;
-            std::function <double(const double &)> lnd;
-            std::function <double(const double &)> lndd;
-            if(n == 0){
-                return {l0,l0d,l0dd};
-            }
-            else if(n == 1)
-            {
-                return {l1,l1d,l1dd};
-            }
-            for(unsigned int k = 1; k < n; ++k){
-                //iteratively contrusct the legendre polynomial of order k +1 <= n (Ln(x)) and derivative ((Ln)'(x))
-                ln = [k, l1, l0](const double &x){return (((2*k + 1)*x*l1(x) - k*l0(x))/(k+1));};
-                lnd = [k, l1, l1d, l0d](const double &x){return (((2*k + 1)*(x*l1d(x) + l1(x)) - k*l0d(x))/(k+1));};
-                lndd = [k, l1d, l0dd, l1dd](const double &x){return (((2*k + 1)*(x*l1dd(x) + 2*l1d(x)) - k*l0dd(x))/(k+1));};
-
-                //update the previous polynomials and correspective derivatives
-                l0 = [l1](const double &x){return l1(x);};
-                l0d = [l1d](const double &x){return l1d(x);};
-                l0dd = [l1dd](const double &x){return l1dd(x);};
-                l1= [ln](const double &x){return ln(x);};
-                l1d= [lnd](const double &x){return lnd(x);};
-                l1dd = [lndd](const double &x){return lndd(x);};
-                
-            }
-            return {ln,lnd, lndd};
-        };
-
-        //function for Lagrange polynomials (1D) on the reference element [-1,1]
-        static std::function <double(const double &)> lagrange_pol(const double &xi/*the index of the basis function, i.e. the index of the node on which the basis function isn't zero*/,
-                                                                    const unsigned int &n/*the degree of the polynomial function, i.e the degree of the FEm space considered*/)
-        {
-            //first, we get the legendre polynomials of degree n-1
-            auto [ln,lnd] = FETools::SpectralFE<ElementType>::legendre_pol(n-1);
-            //then generate the function to evaluate the Lagrangian basis for a given coordinate
-            std::function<double(const double &)> l_i = [&xi, &n, lnd, ln](const double &x){return (-1./((n-1)*(n))*(1. - x*x)*lnd(x)/((x - xi)*ln(xi)));};
-            return l_i;
-        };
-
-        //function for Lagrange polynomials first order derivative (1D) on the reference element [-1,1]
-        static std::function <double(const double &)> lagrange_der(const double &xi/*the index of the basis function, i.e. the index of the node on which the basis function isn't zero*/,
-                                                                    const unsigned int &n/*the degree of the polynomial function, i.e the degree of the FEm space considered*/)
-        {
-            //first, we get the legendre polynomials of degree n-1 and derivative of first order and second order
-            auto [ln,lnd, lndd] = FETools::SpectralFE<ElementType>::legendre_der(n-1);
-            //then generate the function to evaluate the derivate Lagrangian basis for a given coordinate
-            // OSS. for x = xi the function is not defined (-> +inf): we will handle this points by returning value 1
-            std::function<double(const double &)> dl_i = [&xi, &n, lndd ,lnd, ln](const double &x)
-            {
-                if(x == -1.)
-                {
-                    double x_nex = x + std::numeric_limits<double>::epsilon();
-                    return (-1./(n*(n-1)*ln(xi)))*((-(1 + x_nex*x_nex - 2*x_nex*xi)*lnd(x) + (1-x_nex*x_nex)*(x_nex-xi)*lndd(x_nex))/((x_nex-xi)*(x_nex-xi)));
-                }
-                else if(x == 1.)
-                {
-                    double x_nex = x - std::numeric_limits<double>::epsilon();
-                    return (-1./(n*(n-1)*ln(xi)))*((-(1 + x_nex*x_nex - 2*x_nex*xi)*lnd(x) + (1-x_nex*x_nex)*(x_nex-xi)*lndd(x_nex))/((x_nex-xi)*(x_nex-xi)));
-
-                }
-                else if(x ==xi)
-                {
-                    return 0.;
-                }
-                else
-                {
-                    return (-1./(n*(n-1)*ln(xi)))*((-(1 + x*x - 2*x*xi)*lnd(x) + (1-x*x)*(x-xi)*lndd(x))/((x-xi)*(x-xi)));
-                }
-                    
-            };
-            
-            return dl_i;
-
-        };
-
-
-        static std::tuple<std::function<double(const double &)>,std::function<double(const double &)>> lagrange_interp(const double &xi/*the index of the basis function, i.e. the index of the node on which the basis function isn't zero*/,
-                                                                    const unsigned int &n/*the degree of the polynomial function, i.e the degree of the FEm space considered*/)
-        {
-
-            //fist of all, determine the cooridinates of the internal nodes on the 1D refernce interval [-1,1];
-            std::vector<double> eps(n);
-            for(unsigned int  i = 0; i < n; i++)
-            {
-                eps[i] = -1. + i*(2./(n-1));
-            }
-            // now iteratively contruct the lagrange interpolating polynomials
-            std::function <double(const double &)> ln = [](const double &x){return 1.;};
-            std::function <double(const double &)> lnd = [](const double &x){return 0.;};
-            for(unsigned int j = 0; j < n; j++)
-            {
-
-                std::function <double(const double &)> l_j;
-                if(eps[j]!= xi)
-                {
-                    l_j = [&xi, eps, j](const double &x){return (x-eps[j])/(xi -eps[j]);};
-                    std::function <double(const double &)> l_m = [&xi, eps, j](const double &x){return 1./(xi -eps[j]);};
-                    ln = [l_j,ln](const double &x){return ln(x)*l_j(x);};
-                    lnd = [l_m, lnd](const double &x){return lnd(x)+l_m(x);};
-                }
-                
-            }
-            ln = [ln,&xi](const double &x){return x!=xi?ln(x):1.;};
-            lnd = [ln,lnd, &xi](const double &x){
-                                                if(x!=-1. || x!=1.)
-                                                    return x!=xi?lnd(x)*ln(x):0.;
-                                                else if (x == -1.)
-                                                {
-                                                    double x_nex = x + std::numeric_limits<double>::epsilon();
-                                                    return lnd(x_nex)*ln(x_nex);
-                                                }
-                                                else
-                                                {
-                                                    double x_nex = x - std::numeric_limits<double>::epsilon();
-                                                    return lnd(x_nex)*ln(x_nex);
-                                                } 
-                                            };
-            
-            return {ln,lnd};
-        }
-        // function for Lagrange polynomials (2D basis function l_i(x)*l_j(y)) on the reference element [-1,1]*[-1,1]
-        static std::function <double(const double &, const double &)> phi(const double &xi, 
-                                                                            const double &xj,
-                                                                            const unsigned int &n)
-        {
-            //lagrangian basis function for the two dimension
-            std::function <double(const double &)> l_i;
-            std::tie(l_i, std::ignore)= FETools::SpectralFE<ElementType>::lagrange_interp(xi,n);
-            std::function <double(const double &)> l_j;
-            std::tie(l_j,std::ignore)= FETools::SpectralFE<ElementType>::lagrange_interp(xj,n);
-            //the basis funcion for the 2D case is given as tensor product of the two lagrangian polynomials
-            std::function <double(const double&, const double &)> phi = [l_i, l_j](const double &x, const double &y){ return l_i(x)*l_j(y);};
-
-            return phi;
-        }
-
-        // function for Lagrange polynomials partial derivative (2D basis function l_i(x)*dl_j(y)) on the reference element [-1,1]*[-1,1] 
-        // with respect to the y variable
-        static std::function <double(const double &, const double &)> dphi(const double &xi, 
-                                                                            const double &xj,
-                                                                            const unsigned int &n)
-        {
-            //lagrangian basis function for the two dimension
-            std::function <double(const double &)> l_i;
-            std::tie(l_i, std::ignore )= FETools::SpectralFE<ElementType>::lagrange_interp(xi,n);
-            std::function <double(const double &)> dl_j;
-            std::tie(std::ignore, dl_j)= FETools::SpectralFE<ElementType>::lagrange_interp(xj,n);
-            //the basis funcion for the 2D case is given as tensor product of the two lagrangian polynomials
-            std::function <double(const double&, const double &)> phi = [l_i, dl_j](const double &x, const double &y){ return l_i(x)*dl_j(y);};
-
-            return phi;
-        }
-
-        
+        // First, the element currently considered
+        ElementType _current_elem;
+        // To compute the quadrature coordinates and weights necessary
+        std::array<Quadrature,DIM> _qr;
+        // The degree of the FE space considered  --> number of quadrature nodes in each direction of the element
+        // (for this implementation, _r is supposed to be the same for both directions)
+        const unsigned int _r;
+        // The number of quadratue points used for the current element (for this implementation, supposed to be the same for the two dimensions);
+        std::array<unsigned int, DIM> _nq;
+        //  A vector containig the coordinates of the quadrature points of the current elements
+        std::vector<Point> _quad_points;
+        // An Eigen Diagonal Matrix storing the values of the quadrature points for the single quadrature points stored inn _quad_points
+        // ----> computed just once if the number of quadrature points are the same for all the elements. Otherwhise there is a need to recompute
+        // it in the update_current() method...
+        SparseMatrix<double> _D_ref;
+        // Eigen Sparse Matrixes storing the values of the gradient of the basis functions over the x and y directions, given the quadrature points of the elements
+        // ----> computed just one if the number of quadrature points is the same for all the elements. Otherwhise there is a need to recompute 
+        // it in the update_current() method
+        std::array<SparseMatrix<double>, DIM> _B_ref;
+        // Jacobian of the element
+        MatrixXd _J_invT;
+        // Extensions of the previous local matrixes
+        ExtentD<SparseMatrix<double>> _Dcell;
+        ExtentJ<MatrixXd> _Jcell_invT;
+        ExtentB<SparseMatrix<double>> _Bcell;
+        // A counter to specify the element of the mesh currently examined
+        unsigned int pun;
     };
+
+
+
 }
 
+
+
+
 #endif
+
+
+
+
+

@@ -103,7 +103,6 @@ void FETools::Quadrature::jacobi_pol(const std::vector<double> &x, const unsigne
 };
 
 
-
 void FETools::Quadrature::legendre_pol(const std::vector<double> &x, const unsigned int &n, std::vector<double> &pol)
     {
         pol.resize(x.size());
@@ -219,11 +218,10 @@ void FETools::Quadrature::LGL_quadratures(const unsigned int &n/*number of nodes
 };
 
 
-std::vector<double> FETools::Quadrature::getN() const{return _nodes;};
-std::vector<double> FETools::Quadrature::getW() const{return _weights;};
+const std::vector<double>& FETools::Quadrature::getN() const{return _nodes;};
+const std::vector<double>& FETools::Quadrature::getW() const{return _weights;};
 
 //______________________________________________________________
-
 
 
 //______________________SPECTRAL FE CLASS MEMBERS______________________
