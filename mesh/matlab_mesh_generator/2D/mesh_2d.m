@@ -1,4 +1,4 @@
-function[xx,yy,jacx,jacy,xy,ww,ifro]=mesh_2d(xa,xb,ya,yb,cb,nex,ney,npdx,npdy,...
+function[xx,yy,jacx,jacy,xy,ww,ifro,ebon]=mesh_2d(xa,xb,ya,yb,cb,nex,ney,npdx,npdy,...
 nov,x,wx,y,wy,gammax,gammay)
 % MESH2D   Uniform 2D SEM mesh on rectangular domain Omega=(xa,xb) x (ya,yb)
 %
@@ -132,7 +132,7 @@ end
 
 end
 
-
+ebon = zeros(ne,1);
 ifro=zeros(noe,1);
 
 % Loop on elements
@@ -148,6 +148,7 @@ if(abs(xy(ii,2)-ya)<=1.e-12 )
 %ifro(ii)=31;
 %end
 ifro(ii) = 1; %modified
+ebon(ie) = 1; %modified
 end
 end
 
@@ -161,6 +162,7 @@ if(abs(xy(ii,1)-xb)<=1.e-12 )
 %ifro(ii)=31;
 %end
 ifro(ii)=2; %modified
+ebon(ie) = 2; %modified
 end
 end
 
@@ -175,6 +177,7 @@ if(abs(xy(ii,2)-yb)<=1.e-12 )
 %ifro(ii)=31;
 %end
 ifro(ii)=3; %modified
+ebon(ie) = 3; %modified
 end
 end
 
@@ -188,6 +191,7 @@ if(abs(xy(ii,1)-xa)<=1.e-12 )
 %ifro(ii)=31;
 %end
 ifro(ii)=4; %modified
+ebon(ie) =  4; %modified
 end
 end
 % check vertices: if vertex V belongs to two sides with different (N/D)
@@ -196,24 +200,32 @@ end
 %modified: the vertex belongs to the correspective edge
 
 % V1
-%ip=nov(1,ie);
+%get the index of vertex 1
+ip=nov(1,1);
 %if ifro(ip)>0 & cb(1)~=cb(4)
-%ifro(ip)=1;
+ebon(1) = 31-1;
+ifro(ip)=31-1;
 %end
 % V2
-%ip=nov(npdx,ie);
+%get the index of vertex 2
+ip=nov(npdx,ney*(nex-1) + 1 );
 %if ifro(ip)>0 & cb(1)~=cb(2)
-%ifro(ip)=2;
+ebon(ney*(nex-1) + 1) =31-2; 
+ifro(ip)=31-2;
 %end
 % V3
-%ip=nov(ldnov,ie);
+%get the index of vertex 3
+ip=nov(ldnov,ne);
 %if ifro(ip)>0& cb(2)~=cb(3)
-%ifro(ip)=3;
+ebon(ne) =31-3; 
+ifro(ip)=31-3;
 %end
 % V4
-%ip=nov(ldnov-nx,ie);
+%get the index of vertex 4
+ip=nov(ldnov-nx,ney);
 %if ifro(ip)>0& cb(4)~=cb(3)
-%ifro(ip)=4;
+ebon(ney) = 31-4;
+ifro(ip)=31-4;
 %end
 
 

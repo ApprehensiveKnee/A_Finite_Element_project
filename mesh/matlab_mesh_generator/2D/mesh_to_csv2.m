@@ -1,5 +1,5 @@
 %MODIFIED::
-% With respect to the original version provided by Gervasio, in this case
+% With respect to the original version provided by Paola Gervasio, in this case
 % ifro returns the edge on which we can find a spefic node, while the
 % the d.c. are given directly inside the C++ code for which this script mesh is
 % used...
@@ -49,6 +49,12 @@
 %                2 if node is on edge 2
 %                3 if node is on edge 3
 %                4 if node is on edge 4
+%                31-1 if node is on vertex 1
+%                31-2 if node is on vertex 2
+%                31-3 if node is on vertex 3
+%                31-4 if node is on vertex 4
+
+
 
 clear all;
 close all;
@@ -72,7 +78,7 @@ nov =cosnov_2d(npdx,nex,npdy,ney);
 gammax=[];
 gammay=[];
 
-[xx,yy,jacx,jacy,xy,ww,ifro]=mesh_2d(xa,xb,ya,yb,cb,nex,ney,npdx,npdy,nov,x,wx,y,wy,gammax,gammay);
+[xx,yy,jacx,jacy,xy,ww,ifro, ebon]=mesh_2d(xa,xb,ya,yb,cb,nex,ney,npdx,npdy,nov,x,wx,y,wy,gammax,gammay);
 
 %once the matrixes are correclty constructed, we move onto the creation of the
 %csv files
@@ -95,18 +101,19 @@ nodes(:,2:3) = xy;
 nodes(:,4)=ifro;
 
 T = array2table(nodes);
-T.Properties.VariableNames(1:3) = {'node_id','node_coordinate_x', 'node_coordinate_y'};
+T.Properties.VariableNames(1:4) = {'node_id','node_coordinate_x', 'node_coordinate_y', 'boundary_flag'};
 writetable(T,'nodes_coordinates.csv')
 %write elements_vertexes.csv (each vertex inside each element)
 %for this purpose the original mesh_1d function as been sligthly modified
 
 
-elems = zeros(ne, 5);
+elems = zeros(ne, 6);
 elems(:,1)=(1:ne);
 elems(:,2:5) = nov';
+elems(:,6) = ebon;
 
 T = array2table(elems);
-T.Properties.VariableNames(1:5) = {'ElementID','GlobalId_1', 'GlobalId_2', 'GlobalId_3', 'GlobalId_4'};
+T.Properties.VariableNames(1:6) = {'ElementID','GlobalId_1', 'GlobalId_2', 'GlobalId_3', 'GlobalId_4', 'boundary_flag'};
 writetable(T,'elements_vertexes.csv');
 
 
