@@ -73,7 +73,7 @@ $$
 $$
 
 where $x = (x, y)^T$ , $\mu(x) = 1$, $\sigma = 1$ and
-$$ f(x)=(20π2 +1)sin(2πx)sin(4πy) $$
+$$f(x)=(20π2 +1)sin(2πx)sin(4πy)$$
 The exact solution to this problem is
 $$u_{ex}(x, y) = sin(2\pi x) sin(4\pi y)$$
 
