@@ -67,8 +67,7 @@ Let $\Omega = (0, 1) × (0, 1)$, and let us consider the following Poisson probl
 
 $$ 
 \begin{cases}
-    \nabla(\mu \nabla u) + \sigma u && x\space\epsilon\space\Omega
-    \\ u = 0 && on\space\delta\Omega
+    \nabla(\mu \nabla u) + \sigma u && x\space\epsilon\space\Omega \\ u = 0 && on\space\delta\Omega
 \end{cases}
 $$
 
