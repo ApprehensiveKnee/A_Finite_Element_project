@@ -2,13 +2,13 @@
 
 
 
-void serialSolver::setup(const unsigned short &option)
+void serialSolver::setup(const unsigned short &option, const std::string& file_name)
 {
     std::cout << "\nSetting up the mesh, initializing the DoF handler and algebraic structure...\n" <<std::endl;
     // As a first step, initialize the mesh, the ID array and the DoFhandler object
     if(option == 1)
     {
-        _mesh.setMesh_csv();
+        _mesh.setMesh_csv(file_name);
         _dof.genPoints(_mesh);
     }
         
@@ -65,11 +65,57 @@ void serialSolver::solve(const bool& print, std::ostream& out)
     return;
 }
 
-void serialSolver::process()
+void serialSolver::process(const std::string & file_name)
 {
-    this->_export();
-    this->_error();
+    this->_export(file_name);
+    this->_errorL2();
+    this->_errorH1();
     return;
+}
+
+void  serialSolver::convergence()
+{
+    for(double h = 0.10; h >= 0.0125; h= h/2)
+    {
+        // Loop over the meshes, call the solver and compute the error
+        std::cout << "====================================" << std::endl;
+        std::cout << "  Mesh -->    h = " << std::fixed << std::setprecision(4) << h <<"\n\n"<< std::endl;
+
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(4) << h;
+
+        setup(1,stream.str());
+        assemble();
+        solve();
+        process(stream.str());
+
+        double errorL2 = 1.;
+        double errorH1 = 1.;
+
+        double h_0 = 0.1;
+        
+
+        // compute the convergence order
+        if(h !=0.10 )
+        {   
+            std::cout << "===========================================" << std::endl;
+            std::cout << "  h : "<< h << std::endl;
+            std::cout << "  L2 error discrepancy : "<<this->_errorL2() - errorL2 << std::endl;
+            std::cout << "  convergence order for error L2 : " << std::endl;
+            std::cout << std::log(this->_errorL2() - errorL2)/std::log(h - h_0) << std::endl;
+            std::cout << "  H1 error discrepancy : "<< this->_errorH1() - errorH1  << std::endl;
+            std::cout << "  convergence order for error H2 : " << std::endl;
+            std::cout << std::log(this->_errorH1() - errorH1)/std::log(h - h_0) << std::endl;
+
+            std::cout << "===========================================" << std::endl;
+        }
+
+        errorL2 = this->_errorL2(true);
+        errorH1 = this->_errorH1();
+
+        h_0 = h;
+
+    }
 }
 
 
@@ -247,7 +293,7 @@ void serialSolver::_apply_boundary()
     
     //inside this method we apply the direchelet b.c., known the value of the functions to be applied at the border
     //loop over all the nodes of the mesh given
-    for(Element_2D rect : _mesh.getElems())
+    for(const Element_2D& rect : _mesh.getElems())
     {
         // get the dof for each element for the DoFHandler
         // and for each dof, see if it is on the boundary (and which boundary)
@@ -282,33 +328,32 @@ void serialSolver::_apply_boundary()
 
 
 
-void serialSolver::_error(std::ostream& out)
+double serialSolver::_errorL2(const bool& print, std::ostream& out) const
 {
     VectorXd error(_sol.rows());
-    for(Element_2D elem : _mesh.getElems())
+    unsigned int ind(0);
+    double sum = 0;
+    for(const Point& p : _dof.getPoints())
     {
-        _fe.update_current(elem);
-        for (unsigned int node = 0; node < _dof.dof_per_cell(); node++)
-        {
-            //compute the difference as the norm of the difference vector obtained between the solution vector numerically obtained with the FEM method
-            //and the vector obtained valuating the exact solution on the nodes of the mesh (on which we computed the numerical solution)
-            error[_dof.getMap()[node][elem.getId()-1]-1] = _e.value(_fe.quadrature_point(node, _dof)) - _sol[_dof.getMap()[node][elem.getId()-1]-1]; 
-        }
-        
-        
+        error[ind] = _e.value(p) - _sol[ind]; 
+        ind++;
     }
-
-   out << "Norm of the error computed: \n\n" << error.norm() << std::endl;
-   return;
+        
+    if(print)
+    {
+        out << "Norm L2 of error computed: \n\n" << error.norm() << std::endl;
+    }
+        
+    return error.norm();
 }
 
 
-void serialSolver::_export()
+void serialSolver::_export(const std::string& file_name) const
 {
     // Define the points of the mesh
     vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
     //Loop over the points of the global
-    for(Point node: _dof.getPoints())
+    for(const Point& node: _dof.getPoints())
     {
         points->InsertNextPoint(node.getX(),node.getY(),0.);
     }
@@ -321,7 +366,7 @@ void serialSolver::_export()
     
 
     // Now store the orignal mesh with the connectivity information
-    for(Element_2D elem : _mesh.getElems())
+    for(const Element_2D& elem : _mesh.getElems())
     {
 
         vtkSmartPointer<vtkQuad> cell = vtkSmartPointer<vtkQuad>::New();
@@ -339,7 +384,7 @@ void serialSolver::_export()
     // Write the mesh to a VTK file
     vtkSmartPointer<vtkXMLPolyDataWriter> writer = 
     vtkSmartPointer<vtkXMLPolyDataWriter>::New();
-    writer->SetFileName("./solution.vtp");
+    writer->SetFileName(("./solution"+file_name+".vtp").c_str());
     writer->SetInputData(mesh);
     writer->Write();
 
@@ -357,11 +402,169 @@ void serialSolver::_export()
 
     
     // Write the solution to the VTK file
-    writer->SetFileName("./solution.vtp");
+    writer->SetFileName(("./solution"+file_name+".vtp").c_str());
     writer->SetInputData(mesh);
     writer->Write();
 
 
     return;
+}
+
+
+
+double serialSolver::_errorH1(const bool& print,std::ostream& out) const
+{
+    // first define the temp variable to store the sum of 
+
+    double sum(0);
+
+    // A reorganization of the solution is in order as to better "move around" while computing the evaluation of the gradient
+    // For this purpouse we generate a 2D array to store the values of the solution "as they would appear of the grid": essentially
+    // first all the values of the solution on the first row of points (y = 0, x = 0,1,2,... ), then all the values on the second row of points (y = 1, x= 0,1,2,...) and so on
+
+    const unsigned int nx = (_mesh.get_nEx()+1)+(_fe.getDeg()-1)*_mesh.get_nEx();
+    const unsigned int ny = (_mesh.get_nEy()+1)+(_fe.getDeg()-1)*_mesh.get_nEy();
+    std::vector<std::vector<double>>sol(nx, std::vector<double>(ny));
+    for(unsigned int i = 0; i < ny; ++i)
+    {
+        for(unsigned int j = 0; j < nx; ++j)
+        {
+            if(j < _fe.getDeg()+1)
+            {
+                sol[i][j] = _sol.coeff(i*(_fe.getDeg()+1)+j);
+            }
+            else
+            {
+                sol[i][j] =_sol.coeff( i*_fe.getDeg()+ j + ((ny-1)*(_fe.getDeg()*((j-1)/_fe.getDeg())+1)));
+            }
+            //std::cout << sol[i][j] << " ";
+        }
+        //std::cout << std::endl;
+        
+    }
+
+    // Allocate the resources for the components of the gradient of the approximated solution
+    double dy;
+    double dx;
+    double hx = (_dof.getPoints()[1].getX() - _dof.getPoints()[0].getX()); //step in x direction
+    double hy = (_dof.getPoints()[_dof.getDeg()[0]+1].getY() - _dof.getPoints()[0].getY()); //step in y direction
+
+    
+    for(unsigned int i = 0; i < ny; ++i)
+    {
+        for(unsigned int j = 0; j < nx; ++j)
+        {
+            // for the points inside the 2D domain...
+            if(i != 0 && j != 0 && i != ny-1 && j !=nx-1)
+            {
+                // ...evalute the derivative with the central finite difference
+                dy = (sol[i + 1][j] - sol[i - 1][j]) / (2 * hy);
+                dx = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
+            }
+            else // otherwhise use some other finite difference method
+            {
+                if(i == 0)
+                {
+                    //evaluate dy by forward finite difference method means
+                    dy = (sol[i + 1][j] - sol[i][j]) / hy;
+                    if(j == 0)
+                    {
+                        //evaluate dx by forward finite difference method means
+                        dx = (sol[i][j+1] - sol[i][j]) / hx;
+                    }
+                    else if (j == nx-1)
+                    {
+                        //evaluate dx by backwards finite difference method means
+                        dx = (sol[i][j] - sol[i][j-1]) / hx;
+                    }
+                    else
+                    {
+                        //evaluate dx by central finite difference method means
+                        dx = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
+                    }
+                }
+                else if(i == ny-1)
+                {
+                    //evaluate dy by backwards finite difference method means
+                    dy = (sol[i][j] - sol[i-1][j]) / hy;
+                    if(j == 0)
+                    {
+                        //evaluate dx by forward finite difference method means
+                        dx = (sol[i][j+1] - sol[i][j]) / hx;
+                    }
+                    else if (j == nx-1)
+                    {
+                        //evaluate dx by backwards finite difference method means
+                        dx = (sol[i][j] - sol[i][j-1]) / hx;
+                    }
+                    else
+                    {
+                        //evaluate dx by central finite difference method means
+                        dx = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
+                    }
+
+                }
+                else
+                {
+                    //evaluate dy by central finite difference method means
+                    dy = (sol[i+1][j] - sol[i-1][j]) / (2*hy);
+                    if(j == 0)
+                    {
+                        //evaluate dx by forward finite difference method means
+                        dx = (sol[i][j+1] - sol[i][j]) / hx;
+                    }
+                    else if (j == nx-1)
+                    {
+                        //evaluate dx by backwards finite difference method means
+                        dx = (sol[i][j] - sol[i][j-1]) / hx;
+                    }
+                    else
+                    {
+                        //evaluate dx by central finite difference method means
+                        dx = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
+                    }
+                } 
+            }
+
+            // after computing the values of the gradient over a certain point, compute the difference
+            // between the gradient of the exact solution and the approximate one
+            double diff;
+            double diff_grad;
+            if(j < _fe.getDeg()+1)
+            {
+                unsigned int ind = i * (_fe.getDeg() + 1)+j;
+                diff = sol[i][j] - _e.value(_dof.getPoints()[ind]);
+                diff = diff*diff;
+                diff_grad = (dx - _e.grad(_dof.getPoints()[ind])[0]) *
+                            (dx - _e.grad(_dof.getPoints()[ind])[0]) +
+                            (dy - _e.grad(_dof.getPoints()[ind])[1]) *
+                            (dy - _e.grad(_dof.getPoints()[ind])[1]);
+            }
+            else
+            {
+                unsigned int ind = i*_fe.getDeg()+ j + ((ny-1)*(_fe.getDeg()*((j-1)/_fe.getDeg())+1));
+                diff = sol[i][j] - _e.value(_dof.getPoints()[ind]);
+                diff = diff*diff;
+                diff_grad = (dx - _e.grad(_dof.getPoints()[ind])[0]) *
+                            (dx - _e.grad(_dof.getPoints()[ind])[0]) +
+                            (dy - _e.grad(_dof.getPoints()[ind])[1]) *
+                            (dy - _e.grad(_dof.getPoints()[ind])[1]);
+            }
+            sum +=  diff_grad + diff;
+
+
+            
+        }
+        
+    }
+
+
+    if(print)
+        out << "Norm H1 of error computed :" << std::sqrt(sum) << std::endl;
+
+    return  std::sqrt(sum);
+    
+ 
+
 }
 

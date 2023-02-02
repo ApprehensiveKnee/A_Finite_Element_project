@@ -43,12 +43,12 @@ public:
     //standard printer
     void printMesh(std::ostream& = std::cout ) const;
     //setter for the number of elements and nodes for a txt file
-    void setNum();
+    void setNum(const std::string&);
     //setter for the nodes and elements of the mesh
     //this method reads the number of elements and nodes from a csv file,
     //the nodes coordinates composing the mesh form a csv and finally the elements (to determine how to nodes are connected)
     //for another csv file    
-    void setMesh_csv();
+    void setMesh_csv( const std::string&);
     
     //member function to generate a basic omogeneous mesh over the domain [a,b]. We must pass some paramethers to the function:
     // ->limits of the domain
@@ -217,7 +217,7 @@ public:
             //Node v4 =getElems()[nEy-1].getNodes[2]; //v4
             
             // Loop over all the elements of the mesh...
-            for(ElementType elem: mesh.getElems())
+            for(const ElementType& elem: mesh.getElems())
             {
                 //... and compute the coordinates of the internal nodes of the elements using mapping operator for each point in the coordiantes vector
 
@@ -324,7 +324,7 @@ void Mesh<ElementType>::printMesh(std::ostream& out) const
 
 
 template<class ElementType>
-void Mesh<ElementType>::setNum()
+void Mesh<ElementType>::setNum(const std::string& file_name)
 {
     //open a text file and read the parameters form it
     // std::ifstream global_numbers("../mesh/numbers.txt");
@@ -332,7 +332,7 @@ void Mesh<ElementType>::setNum()
     // global_numbers.close();
 
     std::string linestr,word;
-    std::fstream global_numbers ("../mesh/matlab_mesh_generator/2D/numbers.csv", std::ios::in);
+    std::fstream global_numbers ("../mesh/matlab_mesh_generator/meshes/numbers_"+file_name+".csv", std::ios::in);
     if(global_numbers.is_open())
     {
         std::getline(global_numbers, linestr); //header - throw away
@@ -355,7 +355,7 @@ void Mesh<ElementType>::setNum()
 
     }else
     {
-        std::cout << "Could not open the numbers.csv" << std::endl;
+        std::cout << "Could not open the numbers_"+file_name+".csv" << std::endl;
         _nNodes = 0;
         std::iota(_nElems.begin(), _nElems.end(), 0);
     }
@@ -371,7 +371,7 @@ void Mesh<ElementType>::setNum()
 };
 
 template<class ElementType>
-void Mesh<ElementType>::setMesh_csv()
+void Mesh<ElementType>::setMesh_csv(const std::string& file_name)
 {
     // Reset the members of the mesh
     _nNodes= 0;
@@ -385,7 +385,7 @@ void Mesh<ElementType>::setMesh_csv()
         //generate and fill the mesh
 
         //first set the number of nodes and elements by calling the setNum() method
-        setNum();
+        setNum(file_name);
         
         //define some temp variables
         std::string linestr, word;
@@ -394,7 +394,7 @@ void Mesh<ElementType>::setMesh_csv()
 
         
         //read nodes coordinates from file
-        std::fstream nodes ("../mesh/matlab_mesh_generator/1D/nodes_coordinates.csv", std::ios::in);
+        std::fstream nodes ("../mesh/matlab_mesh_generator/1D/nodes_coordinates_"+file_name+".csv", std::ios::in);
         if(nodes.is_open())
         {
             std::getline(nodes, linestr); // header row - throw away
@@ -418,12 +418,12 @@ void Mesh<ElementType>::setMesh_csv()
             nodes.close();
         }
         else
-        std::cout<<"Could not open the nodes file (nodes_coordinates)\n";
+        std::cout<<"Could not open the nodes file (nodes_coordinates_ "+ file_name +")\n";
 
 
         unsigned int holder1, holder2;
         //read the elements from file
-        std::fstream elems ("../mesh/matlab_mesh_generator/1D/elements_vertexes.csv", std::ios::in);
+        std::fstream elems ("../mesh/matlab_mesh_generator/1D/elements_vertexes_"+file_name+".csv", std::ios::in);
         if(elems.is_open())
         {
             std::getline(elems, linestr); // header row - throw away
@@ -456,7 +456,7 @@ void Mesh<ElementType>::setMesh_csv()
             
         }
         else
-        std::cout<<"Could not open the elements file (element_vertices)\n";
+        std::cout<<"Could not open the elements file (element_vertices_"+file_name+".csv)\n";
 
     }
     else if constexpr (DIM == 2)
@@ -464,7 +464,7 @@ void Mesh<ElementType>::setMesh_csv()
         //generate and fill the mesh
 
         //first set the number of nodes and elements by calling the setNum() method
-        setNum();
+        setNum(file_name);
         
         //define some temp variables
         std::string linestr, word;
@@ -474,7 +474,7 @@ void Mesh<ElementType>::setMesh_csv()
 
         
         //read nodes coordinates from file
-        std::fstream nodes ("../mesh/matlab_mesh_generator/2D/nodes_coordinates.csv", std::ios::in);
+        std::fstream nodes ("../mesh/matlab_mesh_generator/meshes/nodes_coordinates_"+file_name+".csv", std::ios::in);
         if(nodes.is_open())
         {
             std::getline(nodes, linestr); // header row - throw away
@@ -501,12 +501,12 @@ void Mesh<ElementType>::setMesh_csv()
             nodes.close();
         }
         else
-        std::cout<<"Could not open the nodes file (nodes_coordinates)\n";
+        std::cout<<"Could not open the nodes file (nodes_coordinates_"+file_name+".csv)\n";
 
 
         unsigned int holder1, holder2, holder3, holder4;
         //read the elements from file
-        std::fstream elems ("../mesh/matlab_mesh_generator/2D/elements_vertexes.csv", std::ios::in);
+        std::fstream elems ("../mesh/matlab_mesh_generator/meshes/elements_vertexes_"+file_name+".csv", std::ios::in);
         if(elems.is_open())
         {
             std::getline(elems, linestr); // header row - throw away
@@ -546,7 +546,7 @@ void Mesh<ElementType>::setMesh_csv()
             
         }
         else
-        std::cout<<"Could not open the elements file (element_vertices)\n";
+        std::cout<<"Could not open the elements file (element_vertice_"+file_name+".csvs)\n";
     }
     else
     {

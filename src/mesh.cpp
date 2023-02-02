@@ -129,7 +129,7 @@ void DoFHandler::printPoints(std::ostream& out) const
 {
     out << " The points of the global mesh are:\n" << std::endl;
     
-    for( Point p : this->getPoints())
+    for(const Point& p : this->getPoints())
     {
         out << "======================" << std::endl;
         p.printPoint(out);

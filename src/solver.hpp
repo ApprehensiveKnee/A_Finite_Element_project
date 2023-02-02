@@ -10,6 +10,7 @@
 #include <Eigen/IterativeLinearSolvers>
 #include "mesh.hpp"
 #include "mat_utilities.hpp"
+#include "spectralFE.hpp"
 #include "elements.hpp"
 // VTK header to use in order to export the mesh ans save the solution for later visualization
 //================================
@@ -81,13 +82,15 @@ public:
 
     //definition of a handle-member/interface with the mesh member variable to
     //decide wether to read the mesh or generate a basic one within the program
-    void setup(const unsigned short &option);
+    void setup(const unsigned short &option, const std::string& = 0);
     //a method to assemble the sistem
     void assemble();
     // a method to solve the sistem
     void solve(const bool& print = false, std::ostream& out= std::cout);
     // a method to process the output data and visualize the output
-    void process();
+    void process(const std::string&);
+    // a method to define the convergence test
+    void  convergence();
 
     // standard getters
     const SparseMatrix<double>& getMat() const;
@@ -97,7 +100,7 @@ public:
     //destructor
     ~serialSolver() = default;
 
-private:
+//private:
     // the methods compute the local matrix for the current analyzed element
     // and compress it onto the system matrix
     // (plus a method to apply Dirichelet boundary conditions)
@@ -106,17 +109,20 @@ private:
     void _LocRHS();
     void _apply_boundary();
     //some methods to compute the global system
-    void  _computeStiff();
+    void _computeStiff();
     void _computeMass();
     void _computeRHS();
     
 
     // // a method to export the solution and mesh on a VTK file
-    void _export();
+    void _export( const std::string&) const;
 
     // a method to compute the error between the computed solution and the exact solution;
     // please note that to implement such method the exact solution must be known
-    void _error(std::ostream& out = std::cout);
+    double _errorL2(const bool& = false, std::ostream& out = std::cout) const;
+    // a utility method to evaluate the gradient of the approximate solution using the finite differences method
+    double _errorH1(const bool& = false, std::ostream& out = std::cout) const;
+    
     
 };
 
