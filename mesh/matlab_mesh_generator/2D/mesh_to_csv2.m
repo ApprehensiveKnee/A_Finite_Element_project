@@ -66,10 +66,11 @@ ya = 0;
 yb = 1;
 cb = strings(4,1);
 cb(1)= 'd';cb(2)= 'd' ;cb(3)= 'd' ; cb(4)= 'd'; 
-nex = 10;
-ney = 10;
+nex = 5;
+ney = 5;
 npdx = 2;
 npdy = 2;
+h =num2str(1/nex, '%.4f'); 
 %as to why the number of nodes per element along a specific dimension has
 %to be 2, read the mesh_to_csv1 file
 nov =cosnov_2d(npdx,nex,npdy,ney);
@@ -92,7 +93,7 @@ noe=nov(npdx*npdy,ne);
 numbers = [noe, nex, ney];
 T = array2table(numbers);
 T.Properties.VariableNames(1:3) = {'Number of total nodes','Number of total elements x axis', 'Number of total elements y axis'};
-writetable(T,'numbers.csv');
+writetable(T,strcat(strcat('../meshes/numbers_',h),'.csv'));
 
 
 nodes = zeros(noe,4);
@@ -102,7 +103,8 @@ nodes(:,4)=ifro;
 
 T = array2table(nodes);
 T.Properties.VariableNames(1:4) = {'node_id','node_coordinate_x', 'node_coordinate_y', 'boundary_flag'};
-writetable(T,'nodes_coordinates.csv')
+writetable(T,strcat(strcat('../meshes/nodes_coordinates_',h),'.csv'));
+
 %write elements_vertexes.csv (each vertex inside each element)
 %for this purpose the original mesh_1d function as been sligthly modified
 
@@ -114,7 +116,7 @@ elems(:,6) = ebon;
 
 T = array2table(elems);
 T.Properties.VariableNames(1:6) = {'ElementID','GlobalId_1', 'GlobalId_2', 'GlobalId_3', 'GlobalId_4', 'boundary_flag'};
-writetable(T,'elements_vertexes.csv');
+writetable(T,strcat(strcat('../meshes/elements_vertexes_',h),'.csv'));
 
 
 
