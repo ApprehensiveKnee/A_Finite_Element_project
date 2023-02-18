@@ -67,13 +67,13 @@ Let $\Omega = (0, 1) × (0, 1)$, and let us consider the following Poisson probl
 
 $$ 
 \begin{cases}
-    \nabla(\mu \nabla u) + \sigma u && x\space\epsilon\space\Omega
-    \\ u = 0 && on\space\delta\Omega
+    \nabla(\mu \nabla u) + \sigma u && x\space\epsilon\space\Omega \\ 
+     u = 0 && on\space\delta\Omega
 \end{cases}
 $$
 
 where $x = (x, y)^T$ , $\mu(x) = 1$, $\sigma = 1$ and
-$$ f(x)=(20π2 +1)sin(2πx)sin(4πy) $$
+$$f(x)=(20π2 +1)sin(2πx)sin(4πy)$$
 The exact solution to this problem is
 $$u_{ex}(x, y) = sin(2\pi x) sin(4\pi y)$$
 

@@ -1,5 +1,4 @@
-
-#include "mat_utilities.hpp"
+#include "quadrature.hpp"
 
 
 
@@ -146,7 +145,7 @@ void FETools::Quadrature::LGL_quadratures(const unsigned int &n/*number of nodes
 
     if(n == 1)
     {
-        std::cout <<"The number of quadrature nodes should be greater than 1" << std::endl;
+        throw std::runtime_error("The number of quadrature nodes should be greater than 1");
         return;
     }
     else
@@ -223,13 +222,3 @@ const std::vector<double>& FETools::Quadrature::getN() const{return _nodes;};
 const std::vector<double>& FETools::Quadrature::getW() const{return _weights;};
 
 //______________________________________________________________
-
-
-//______________________SPECTRAL FE CLASS MEMBERS______________________
-
-
-// as the class has been defined as template class, all the definitions
-// of the member functions are grouped inside the corresponding header file
-
-
-//_______________________________________________________________

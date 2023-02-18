@@ -1,5 +1,9 @@
 
 
+//===========================================================
+//         s HEADER FILE FOR THE FE SPECTRAL CLASS 
+//===========================================================
+
 #ifndef FE
 #define FE
 
@@ -7,286 +11,38 @@
 #include <algorithm>
 #include <functional>
 #include <tuple>
-#include <type_traits>
 #include "elements.hpp"
 #include "mesh.hpp"
 #include "mat_utilities.hpp"
+#include "quadrature.hpp"
+#include "functions.hpp"
 
 namespace FETools
 {
 
 
-    template <class ElementType>
+    template <unsigned int DIM>
     class SpectralFE
     {
     public:
 
-        //  ==========================================================================
-        // CUSTOM CLASSSES TO IMPLEMENT MATRIX FREE MATRIX PRODUCT ON THE CELL MATRIXES
-        //  ==========================================================================
-        // since Bref_cell,J_cell and D_cell are made up of copies of the same values repeated in certain positions,
-        // this lets us compute the matrix products in a more efficent way simply by accessing the Jacobian of the element
-        // D_ref, e Bx_ref/ By_ref
-        
 
-        //  Class for Bref_cell extention form Bx_ref and By_ref
-        template<typename Derived>
-        class ExtentB: public Eigen::EigenBase<Derived>
-        {
-        public:
-            ExtentB() = default;
-            ExtentB(const std::array<SparseMatrix<double>,DIM>& B, const std::array<unsigned int, DIM>& nq, const unsigned int& re = r)
-            : _B(B),
-            _nq(nq),
-            _r(re)
-            {}
-
-            int rows() const
-            {
-                return DIM * _nq[0] * (DIM==2?_nq[DIM-1]:1)/*DIM * n_q*/;
-            }
-
-            int cols() const
-            {
-                // REMARK:
-                // dofs per cell and number of quadrature points are supposeed to be the same, still
-                // this implementation better explains how the B matrix is built (even though it may take slightly more time and resources)
-                return DoFHandler(_r).dof_per_cell() /* dof_per_cell */;
-            }
-
-            // Return sub-matrix in each iteration
-            double operator()(const int& i/* nqx*nqy*DIM*/, const int& j/*nqx*nqy*/) const
-            {
-                // REMARK
-                // Here again, we could have just used a single variable, yet for better clarity, the choice was
-                // to "keep the dimensions separated"
-                const unsigned int dofx = DoFHandler(_r).getDeg()[0] +1;
-                const unsigned int dofy = DoFHandler(_r).getDeg()[1] +1 ;
-
-                if constexpr(DIM == 2)
-                {
-                    // lines of Bx_ref
-                    if(i%2 == 0 /*even rows (x dedicated)*/)
-                    {
-                        if((i>>1)/_nq[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
-                            return _B[0].coeff((i/2)%_nq[0],j%dofx);
-                        else 
-                            return 0.;
-                    }
-                    // lines of By_ref
-                    else /*odd rows*/
-                    {
-                        if((i>>1)%_nq[1] == j%dofy) // i and j indexing on an elemente on the diagonal block
-                            return _B[1].coeff((i>>1)/_nq[1], j/dofy);
-                        else 
-                            return 0.;
-                    }
-
-                }
-                else
-                {
-                    if(i/_nq[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
-                            return _B[0].coeff(i%_nq[0],j%dofx);
-                        else 
-                            return 0.;
-                } 
-                    
-            }
-
-            double transpose(const int& i/* nqx*nqy*DIM*/, const int& j/*nqx*nqy*/) const
-            {
-                return this->operator()(j,i);
-                    
-            }
-
-
-        private:
-            const std::array<SparseMatrix<double>,DIM>& _B;
-            const std::array<unsigned int,DIM>& _nq;
-            const unsigned int& _r;
-        };
-
-        //  Class for D_cell extension form D_ref matrix
-        
-        template<typename Derived>
-        class ExtentD: public Eigen::EigenBase<Derived>
-        {
-        public:
-            ExtentD() = default;
-            ExtentD(const SparseMatrix<double> &A)
-            : _A(A)
-            {}
-
-
-            int rows() const
-            {
-                return _A.rows() * DIM;
-            }
-
-            int cols() const
-            {
-                return _A.cols() * DIM;
-            }
-
-            // Return sub-matrix in each iteration
-            double operator()(const int& i, const int& j) const
-            {
-                if( i == j)
-                    return _A.coeff(i/DIM, j/DIM);
-                else
-                    return 0.;
-            }
-
-            // Operator * overloading to support multiplication with custom expression class (coeff * D_ref)
-            SparseMatrix<double> operator*(const double& coeff) const
-            {
-                SparseMatrix<double> result(this->rows(), this->rows());
-
-                for (int i = 0; i < this->rows(); ++i)
-                        result.coeffRef(i, i) += coeff * this->operator()(i, i);
-
-                return result;
-            }
-
-        private:
-            const SparseMatrix<double>& _A;
-        };
-
-        //  Class for J_cell extention from Jacobian of the element
-        template<typename Derived>
-        class ExtentJ: public Eigen::EigenBase<Derived>
-        {
-        public:
-            ExtentJ() = default;
-            ExtentJ(const MatrixXd &A, const unsigned int& nq)
-            : _A(A),
-            _nq(nq)
-            {}
-
-            int rows() const
-            {
-                return _A.rows()*_nq;
-            }
-
-            int cols() const
-            {
-                return _A.cols()*_nq;
-            }
-
-            // Return sub-matrix in each iteration
-            double operator()(const int& i, const int& j) const
-            {
-
-                if constexpr(DIM == 2)
-                {
-
-                    if(i%2 == 0 /* row is even*/)
-                    {
-                        if(j%2 == 0 /*col is even*/ && i == j /*on the diagonal*/ )
-                        {
-                            return _A(0, 0);
-                        }
-                        else if(j%2 == 1 /*col is */ && j == i+1 /*on the upper diagonal*/)
-                        {
-                            return _A(0,1);
-                        }
-                        else
-                            return 0.;
-                    }
-                    else /*row is odd*/
-                    {
-                        if(j%2 == 0 /*col is even*/ && j == i-1 /*on the lower diagonal*/)
-                        {
-                            return _A(1, 0);
-                        }
-                        else if(j%2 == 1/*col is odd*/ && j == i/*on the diaglona*/)
-                        {
-                            return _A(1,1);
-                        }
-                        else
-                            return 0.;
-                    }
-
-                }
-                else
-                {
-                    if(i == j /*on the diagonal*/)
-                        return _A(0,0);
-                }
-                    
-            }
-
-            // Operator * overloading to support multiplication with custom expression class (J_cell^invT * B_cell)
-            MatrixXd operator*(const ExtentB<SparseMatrix<double>> &B) const
-            {
-
-                SparseMatrix<double> result(this->rows(), B.cols());
-                for (int i = 0; i <this->rows(); ++i)
-                {
-                    for (int j = 0; j < B.cols(); ++j)
-                    {
-                        for (int k = 0; k < this->cols(); ++k)
-                            result.coeffRef(i, j) += this->operator()(i, k) * B(k, j);
-                    }
-
-                }
-                return result;
-            }
-
-
-            double transpose(const int& i, const int& j) const
-            {
-                return this->operator()(j,i);
-            }
-
-
-        private:
-            const MatrixXd& _A;
-            const unsigned int _nq;
-        };
-
-        
-
-        //  ==========================================================================
-
-
-
-
-        //constructor
-        SpectralFE(const unsigned int &re = r,
-                const unsigned int &nqx = r + 1,
-                const unsigned int &nqy = r + 1)
+        // Constructor
+        SpectralFE(const unsigned int &re = r)
             : _current_elem(),
-            _qr(),
-            _r(re),
-            _nq(classInit(nqx, nqy)),
-            _quad_points(),
-            _D_ref(nqx * DIM==2?nqy:1 /* n_q */, nqx * DIM==2?nqy:1 /* n_q */),
-            _B_ref(classInit(nqx, nqy, r)), // dof_per_cell = n_q
-            _J_invT(DIM, DIM),
-            _Dcell(_D_ref),
-            _Jcell_invT(_J_invT, _nq[0]*((DIM==2)?_nq[DIM-1]:1)),
-            _Bcell(_B_ref, _nq, _r),
-            pun(0){};
+              _qr(),
+              _r(re),
+              _quad_points(),
+              _D_ref((re+1) * DIM == 2 ? (re+1) : 1 /* n_q */, (re+1) * DIM == 2 ? (re+1) : 1 /* n_q */),
+              _B_ref(DIM == 2 ? std::array<SparseMatrix<double>, DIM>{SparseMatrix<double>((re+1), (re + 1) * (re + 1)), SparseMatrix<double>((re+1), (re + 1) * (re + 1))}
+                              : std::array<SparseMatrix<double>, DIM>{SparseMatrix<double>((re+1), (re + 1))}), // dof_per_cell = n_q
+              _J_invT(DIM, DIM),
+              _Dcell(_D_ref),
+              _Jcell_invT(_J_invT, _current_elem),
+              _Bcell(_B_ref, _current_elem, _r){};
 
-        SpectralFE(const ElementType &element,
-                const unsigned int &re = r,
-                const unsigned int &nqx = r + 1,
-                const unsigned int &nqy = r + 1)
-            : _current_elem(element),
-            _qr(),
-            _r(r),
-            _nq(classInit(nqx, nqy, r)),
-            _quad_points(),
-            _D_ref(nqx * DIM == 2 ? nqy : 1 /* n_q */, nqx * DIM == 2 ? nqy : 1 /* n_q */),
-            _B_ref(classInit(nqx, nqy)), // dof_per_cell = n_q
-            _J_invT(DIM, DIM),
-            _Dcell(_D_ref),
-            _Jcell_invT(_J_invT, _nq[0]*(DIM==2)?_nq[DIM-1]:1),
-            _Bcell(_B_ref, _nq, _r),
-            pun(0){};
-        //standar getters
-        const ElementType& getCurrent() const
+        // Default getters
+        const Element<DIM>& getCurrent() const
         {
             return _current_elem;
         };
@@ -303,16 +59,10 @@ namespace FETools
 
         const std::array<unsigned int, DIM>& getNQ() const
         {
-            return _nq;
+            return _current_elem.getNQ();
         }
 
-        void setNQ(const std::array<unsigned int,DIM>& exactness)
-        {
-            _nq = exactness;
-            return;
-        }
-
-        const std::vector<Point>& getQPoints() const
+        const std::vector<Point<DIM>>& getQPoints() const
         {
             return _quad_points;
         };
@@ -332,17 +82,17 @@ namespace FETools
             return _J_invT;
         } 
 
-        const ExtentD<SparseMatrix<double>>& D_cell() const
+        const ExtendMat::ExtendedD<SparseMatrix<double>,DIM>& D_cell() const
         {
             return _Dcell;
         }
 
-        const ExtentJ<MatrixXd>& J_cell_invT() const
+        const ExtendMat::ExtendedJ<MatrixXd,DIM>& J_cell_invT() const
         {
             return _Jcell_invT;
         }
 
-        const ExtentB<SparseMatrix<double>>& B_cell() const
+        const ExtendMat::ExtendedB<SparseMatrix<double>,DIM>& B_cell() const
         {
             return _Bcell;
         }
@@ -350,69 +100,39 @@ namespace FETools
         double detJ() const
         {
             if constexpr(DIM == 2)
-                return _current_elem.jacobian().determinant();
+                return _current_elem.template jacobian<Matrix2d>().determinant();
             else
-                return _current_elem.jacobian();
+                return _current_elem.template jacobian<double>();
             
         }
 
-        const unsigned int& getPun() const
+
+        // a method to update the element currently considered
+        void update_current( const Element<DIM> &geoele )
         {
-            return pun;
-        };
-
-        // a method to move up on the examination and computation of local matrixes
-        // updating the element of the mesh to be computed
-        void move_up(const Mesh<ElementType> &mesh)
-        {
-            if(this->getPun() < (mesh.get_nElems()))
+        
+            
+            if(geoele.getNQ() == this->getNQ())
             {
-                if constexpr(DIM == 2)
-                {
-                    if(std::is_same<ElementType, Element_2D>::value)
-                        this->update_current(mesh.getElem(pun));
-                    else
-                    {
-                        throw std::runtime_error("Something went wrong, the dimensonal paramether doesn't correspond with the type of mesh element\n");
-                    }
-                }
-                else
-                {
-                    if(std::is_same<ElementType, Element_1D>::value)
-                        this->update_current(mesh.getElem(pun));
-                    else
-                    {
-                        throw std::runtime_error("Something went wrong, the dimensonal paramether doesn't correspond with the type of mesh element\n");
-                    }
-
-                }
-
-                pun++;
-                    
-            }
-            else 
-            {
-                std::cout << "The SpectralFE object has reached the end of the mesh"<<std::endl;
-                pun = -1;
-            }
-            return;
-        };
-
-        // a method to update the element currently considered (used in move_up method)
-        void update_current( const ElementType &geoele )
-        {
-            _current_elem = geoele;
-            this->_update_quad();
-            // update the Jacobian
-            this->_update_J();
-            if(_current_elem.getNQ() == this->getNQ())
-            {
+                // In this first case, we just need to update the jacobian of the element after updating the 
+                // element itself:
+                _current_elem = geoele;
+                // update the Jacobian
+                this->_update_J();
                 return;
             }
             else
             {
-                //update the degree of exactenss for the quadrature on the current element
-                this->setNQ(_current_elem.getNQ());
+                // If the number of quadrature points along the two directions are different for the
+                // new element with respect to the previous one, we have to update the quadrature points, the D and the
+                // B matrixes
+                unsigned int nqx = _current_elem.getNQ()[0];
+                unsigned int nqy = _current_elem.getNQ()[1];
+                _current_elem = geoele;
+                // update the Jacobian
+                this->_update_J();
+                // update the quadrature points
+                this->_update_quad();
                 // update the evaluation of quadrature points
                 this->_update_D();
                 if constexpr (DIM ==2)
@@ -420,36 +140,34 @@ namespace FETools
                     
                     
                     // In this case, recompute Bx
-                    if(_current_elem.getNQ()[0] != this->getNQ()[0])
+                    if(nqx != this->getNQ()[0])
                     {
                         this->_update_B(0);
                     }
                     // In this case, recompute By
-                    if(_current_elem.getNQ()[1] != this->getNQ()[1])
+                    if(nqy != this->getNQ()[1])
                     {
                         this->_update_B(1);
                     }
-                    //update quadrature nodes and weights, as well as the degree
+                    
 
+                }
+                else
+                {
+                    // In the 1D case just recompute the Bx matrix
+                    if(nqx != this->getNQ()[0])
+                    {
+                        this->_update_B(0);
+                    }
                 }
 
             }
             
             return;
         };
-
-        // a method to update first set the reference matrixes
-        void set()
-        {
-            // First initialization of the reference matrixes
-            this->_update_D();
-            this->_update_B(0);
-            this->_update_B(1);
-            return;
-        }
         
         // member function to map the quadrature points on to the specific element
-        Point quadrature_point(const unsigned int &q,const DoFHandler& dof) const
+        Point<DIM> quadrature_point(const unsigned int &q,const DoFHandler<DIM>& dof) const
         {
 
             //  FIRST APPROACH:
@@ -458,22 +176,22 @@ namespace FETools
             // if constexpr (DIM == 2)
             // {
             //     double x, y;
-            //     std::tie(x,y) = _current_elem.direct_map((this->getQPoints()[q]).getX(),(this->getQPoints()[q]).getY());
-            //     Point my_point(x,y);
+            //     std::tie(x,y) = _current_elem.directMap<double>((this->getQPoints()[q]).getX(),(this->getQPoints()[q]).getY());
+            //     Point<DIM> my_point(x,y);
             //     return my_point;
             // }
             // else
             // {
             //     double x;
-            //     x = _current_elem.direct_map((this->getQPoints()[q]).getX());
-            //     Point my_point(x);
+            //     x = _current_elem.directMap<Matrix2d>((this->getQPoints()[q]).getX());
+            //     Point<DIM> my_point(x);
             //     return my_point;
             // }
 
             //  SECOND APPROACH
-            // get the quarature point for the global mesh computed by a DoFHandler object ALREADY INITIALISED
+            // Get the quarature point for the global mesh computed by a DoFHandler object ALREADY INITIALISED
             
-            // using the index of the element currently considered, get the coordinates of the quadrature points
+            // Using the index of the element currently considered, get the coordinates of the quadrature points
             
             return dof.getPoints()[dof.getMap()[q][this->getCurrent().getId()-1]-1];
 
@@ -529,8 +247,10 @@ namespace FETools
                         //loop over x coordinate
                         for(auto i : this->_comp_quad_c(0))
                         {
-                            Point my_point(i,j);
+                            Point<DIM> my_point(i,j, 0);
+                            
                             _quad_points.emplace_back(my_point);
+                            
                         }
                     }
 
@@ -549,7 +269,7 @@ namespace FETools
                     //loop over x coordinate
                     for(auto i : this->_comp_quad_c(0))
                     {
-                        Point my_point(i);
+                        Point<DIM> my_point(i, 0, 0);
                         _quad_points.emplace_back(my_point);
                     }
 
@@ -567,7 +287,7 @@ namespace FETools
         void _update_D()
         {
             // Clear _D_ref and resize
-            _D_ref.resize(_nq[0]*((DIM ==2)?_nq[DIM-1]:1),_nq[0]*((DIM==2)?_nq[DIM-1]:1));
+            _D_ref.resize(this->getNQ()[0]*((DIM ==2)?this->getNQ()[DIM-1]:1),this->getNQ()[0]*((DIM==2)?this->getNQ()[DIM-1]:1));
             // Compute the quadrature nodes on the quadrature points and insert them in D
             unsigned int index = 0;
 
@@ -584,6 +304,7 @@ namespace FETools
                     }
                 }
 
+
             }
             else
             {
@@ -595,7 +316,6 @@ namespace FETools
                 }
 
             }
-            
 
             return;
         }
@@ -613,7 +333,7 @@ namespace FETools
             // First of all, as a precautionary measure, we erase the content of the _der_matrix member
             _B_ref[dir].resize(this->getNQ()[0],this->getNQ()[0]);
             const unsigned int n = np -1;
-            const unsigned int dof = DoFHandler(this->getDeg()).getDeg()[dir] + 1;
+            const unsigned int dof = DoFHandler<DIM>(this->getDeg(), this->getDeg()).getDeg()[dir] + 1;
             std::vector<double> lnx(np);
             //compute the legendre polynomials over the LGL nodes
             FETools::Quadrature::legendre_pol(x, n, lnx);
@@ -642,60 +362,31 @@ namespace FETools
             if constexpr(DIM == 2)
             {
                 _J_invT.resize(DIM, DIM);
-                _J_invT = _current_elem.jacobian().inverse().transpose();
+                _J_invT = _current_elem.template jacobian<Matrix2d>().inverse().transpose();
 
             }
             else
             {
                 _J_invT.resize(DIM,DIM);
-                _J_invT << 1/_current_elem.jacobian();
+                _J_invT << 1/_current_elem.template jacobian<double>();
             }
                 
             return;
         };
 
-        // a method for simple class initialization
-        std::array<unsigned int, DIM> classInit(const unsigned int& nx,const unsigned int& ny)
-        {
-            if constexpr (DIM == 2)
-            {
-                return {nx,ny};
-            }
-            else
-            {
-                return {nx};
-            }
-        }
-
-        std::array<SparseMatrix<double>, DIM> classInit(const unsigned int& nqx, const unsigned int& nqy, const unsigned int& re )
-        {
-            // Instantiate a dof handler object to get the dof number
-            unsigned int dof(DoFHandler(re).dof_per_cell());
-            if constexpr (DIM == 2)
-            {
-                return {SparseMatrix<double>(nqx,dof),SparseMatrix<double>(nqy,dof)};
-            }
-            else
-            {
-                return {SparseMatrix<double>(nqx,dof)};
-            }
-        }
-
 
     private:
 
         
-        // First, the element currently considered
-        ElementType _current_elem;
+        // First, the element currently considered (taken as reference as to avoid making a copy)
+        Element<DIM> _current_elem;
         // To compute the quadrature coordinates and weights necessary
         std::array<Quadrature,DIM> _qr;
         // The degree of the FE space considered  --> number of quadrature nodes in each direction of the element
-        // (for this implementation, _r is supposed to be the same for both directions)
+        // (Here we assume the deg of the FE spaces is the same for all directions, to ease off the implementation of the code)
         const unsigned int _r;
-        // The number of quadratue points used for the current element (for this implementation, supposed to be the same for the two dimensions);
-        std::array<unsigned int, DIM> _nq;
         //  A vector containig the coordinates of the quadrature points of the current elements
-        std::vector<Point> _quad_points;
+        std::vector<Point<DIM>> _quad_points;
         // An Eigen Diagonal Matrix storing the values of the quadrature points for the single quadrature points stored inn _quad_points
         // ----> computed just once if the number of quadrature points are the same for all the elements. Otherwhise there is a need to recompute
         // it in the update_current() method...
@@ -707,11 +398,9 @@ namespace FETools
         // Jacobian of the element
         MatrixXd _J_invT;
         // Extensions of the previous local matrixes
-        ExtentD<SparseMatrix<double>> _Dcell;
-        ExtentJ<MatrixXd> _Jcell_invT;
-        ExtentB<SparseMatrix<double>> _Bcell;
-        // A counter to specify the element of the mesh currently examined
-        unsigned int pun;
+        ExtendMat::ExtendedD<SparseMatrix<double>,DIM> _Dcell;
+        ExtendMat::ExtendedJ<MatrixXd, DIM> _Jcell_invT;
+        ExtendMat::ExtendedB<SparseMatrix<double>, DIM> _Bcell;
     };
 }
 

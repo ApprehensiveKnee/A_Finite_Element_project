@@ -1,242 +1,264 @@
 
-//=================================================================
-// HEADER FILE FOR THE CLASS QUADRATURE AND FE SPECTRAL DEFINITIONS
-//=================================================================
+
+//  ==========================================================================
+// CUSTOM CLASSSES TO IMPLEMENT MATRIX FREE MATRIX PRODUCT ON THE CELL MATRIXES
+//  ==========================================================================
+
 
 #ifndef UTIL
 #define UTIL
 
-#include <numeric>
-#include <algorithm>
-#include <functional>
-#include <tuple>
-#include <type_traits>
-#include "elements.hpp"
+#include <iostream>
+#include <array>
+#include <vector>
+#include <string>
 #include "mesh.hpp"
+#include <Eigen/Dense>
+#include <Eigen/SparseCore>
 
-
-//______________________________________________________________
-
-
-namespace Functions
+// since Bref_cell,J_cell and D_cell are made up of copies of the same values repeated in certain positions,
+// this lets us compute the matrix products in a more efficent way simply by accessing the Jacobian of the element
+// D_ref, and Bx_ref/ By_ref.
+// The following classes are views(proxies) to implement matrix multiplications between 
+// the local matrixes without explicitily defining them.
+        
+namespace ExtendMat
 {
-    
-    //Pure class for scalar function taking values in 2D domains
-    class Function
+
+    //  Class for Bref_cell extention form Bx_ref and By_ref
+    template<typename Derived, unsigned int DIM>
+    class ExtendedB: public Eigen::EigenBase<Derived>
     {
     public:
-        //standard contructor
-        Function(){};
-        //define a virtual method that will be overridden by the derived classes
-        virtual double value(const Point &) const= 0;
-        virtual std::array<double, DIM> grad(const Point&) const{return {0.,0.};};
-        //define virtual contructor
-        virtual ~Function(){};
-
-    };
-
-    //then some general functions derived from the function base class
-    //we hereby consider just scalar functions
-
-    class DiffusionCoefficient : public Function
-    {
-    public:
-        // Constructor.
-        DiffusionCoefficient()
+        ExtendedB() = default;
+        ExtendedB(const std::array<SparseMatrix<double>,DIM>& B, const Element<DIM>& geoele, const unsigned int& re = r)
+        : _B(B),
+        _current(geoele),
+        _r(re)
         {}
 
-        // Evaluation.
-        virtual double
-        value(const Point & /*p*/) const override
+        int rows() const
         {
-        return 1.0;
+            return DIM * _current.getNQ()[0] * (DIM==2?_current.getNQ()[DIM-1]:1)/*DIM * n_q*/;
         }
 
-    };
-
-    // Reaction coefficient.
-    class ReactionCoefficient : public Function
-    {
-    public:
-        // Constructor.
-        ReactionCoefficient()
-        {}
-
-        // Evaluation.
-        virtual double
-        value(const Point& /*p*/) const override
+        int cols() const
         {
-        return 1.0;
-        }
-    };
-
-    // Forcing term.
-    class ForcingTerm : public Function
-    {
-    public:
-        // Constructor.
-        ForcingTerm()
-        {}
-
-        // Evaluation.
-        virtual double
-        value(const Point & p) const override
-        {
-            return (20*M_PI*M_PI + 1)*std::sin(2*M_PI*p.getX())*std::sin(4*M_PI*p.getY());
-        }
-    };
-
-    // The exact solution (must be known)
-    class ExactSolution : public Function
-    {
-    public:
-        // Constructor.
-        ExactSolution()
-        {}
-
-        // Evaluation.
-        virtual double
-        value(const Point & p) const override
-        {
-            return std::sin(2*M_PI*p.getX())*std::sin(4*M_PI*p.getY());
+            // REMARK:
+            // dofs per cell and number of quadrature points are supposeed to be the same, still
+            // this implementation better explains how the B matrix is built 
+            // Ideally, we could just get the number of the cols form nq, since the
+            // number of quadarture points and dofs is supposed to be the same
+            return DoFHandler<DIM>(_r, _r).dof_per_cell() /* dof_per_cell */;
         }
 
-        std::array<double, DIM> 
-        grad(const Point &p) const override
+        // Return sub-matrix in each iteration
+        double operator()(const unsigned int& i/* nqx*nqy*DIM*/, const unsigned int& j/*nqx*nqy*/) const
         {
+            // REMARK
+            // Here again, we could have just used a single variable, yet for better clarity, the choice was
+            // to "keep the dimensions separated"
+            const unsigned int dofx = DoFHandler<DIM>(_r, _r).getDeg()[0] +1;
+            const unsigned int dofy = DoFHandler<DIM>(_r, _r).getDeg()[1] +1 ;
+
             if constexpr(DIM == 2)
-                return{2 * M_PI *std::cos(2*M_PI*p.getX())*std::sin(4*M_PI*p.getY()), 4 * M_PI * std::sin(2*M_PI*p.getX())*std::cos(4*M_PI*p.getY())};
-            else
-                return{2 * M_PI *std::cos(2*M_PI*p.getX())*std::sin(4*M_PI*p.getY())};
-        }
-    };
-
-    // Some constant functions to use, for instance, with Dirichelet b.c
-
-    class functionZero : public Function
-    {
-    public:
-        // Constructor.
-        functionZero()
-        {}
-
-        // Evaluation.
-        virtual double
-        value(const Point & /*p*/) const override
-        {
-        return 0.0;
-        }
-    };
-
-    class functionOne : public Function
-    {
-    public:
-        // Constructor.
-        functionOne()
-        {}
-
-        // Evaluation.
-        virtual double
-        value(const Point & /*p*/) const override
-        {
-        return 1.0;
-        }
-    };
-}
-
-
-
-
-//______________________________________________________________
-
-namespace FETools
-{
-    // a class to implement all the functions necessary to evaluate the Gauss Legendre Lobotto quadrature nodes and members
-    class Quadrature
-    {
-    private:
-        std::vector<double> _nodes;
-        std::vector<double> _weights;
-    public:
-        //standard contructor
-        Quadrature()
-            :_nodes(),
-            _weights()
-            {};
-
-        //A member function to evaluate the Jacobi polinomial and derivatives at x in [-1,1] given the degree n and the paramethers alpha and beta
-        static void jacobi_pol(const std::vector<double> &x, const unsigned int &n, const double &_alpha, const double &_beta, std::array<std::vector<double>,3>& pol, std::array<std::vector<double>,3>& der);
-
-
-        template <typename Iterator>
-        // A member function to evaluate the n roots of the Jacobi polynomial, obtained by using Newton method and deflation process.
-        static void jacobi_roots(const unsigned int &n, const double &_alpha, const double &_beta, const Iterator start, const Iterator end)
-        {
-            if( n < 1)
             {
-                return;
-            }
-            else
-            {
-                // assume the vector given has already the needed space allocated,
-                // no extra control is requested
-                std::vector<double> x0 (1,std::cos(M_PI/(2*n)));
-                double x1(0.);
-                double tol=1e-14; unsigned int kmax=15;
-                //for(unsigned int j = 0; j < n; ++j)
-                unsigned int j = 1;
-                for (Iterator it = start; it !=end; ++it, j++)
-                {   
-                    
-                    double diff = tol + 1;
-                    for(unsigned int kiter = 0; kiter <= kmax && diff >= tol; kiter++)
-                    {
-
-                        std::array<std::vector<double>,3> pol, der;
-                        jacobi_pol(x0, n, _alpha, _beta, pol, der);
-                        // deflation process q(x)=p(x)*(x-x_1)*... (x-x_{j-1})
-                        // q(x)/q'(x)=p(x)/[p'(x)-p(x)*\sum_{i<j} 1/(x-x_i)]
-                        double ss = std::accumulate(start,
-                                                    it, 
-                                                    1./x0[0],
-                                                    [&](const double &a, const double &b){return a + 1./ (x0[0]-b);});
-                        x1 = x0[0]-pol[0][0]/(der[0][0]-ss*pol[0][0]);
-                        double diff = std::abs(x1-x0[0]);
-                        x0[0]=x1;
-                    }
-                    x0[0] = .5 * (x1+std::cos((2*(j+1)-1)*M_PI/(2*n)));
-                    *it = x1;
-                    if(std::isnan(*(it)) || std::abs(*(it)) < tol){ *(it) = 0;}
+                // lines of Bx_ref
+                if(i%2 == 0 /*even rows (x dedicated)*/)
+                {
+                    if((i>>1)/_current.getNQ()[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
+                        return _B[0].coeff((i/2)%_current.getNQ()[0],j%dofx);
+                    else 
+                        return 0.;
                 }
-                std::sort(start, end);
+                // lines of By_ref
+                else /*odd rows*/
+                {
+                    if((i>>1)%_current.getNQ()[1] == j%dofy) // i and j indexing on an elemente on the diagonal block
+                        return _B[1].coeff((i>>1)/_current.getNQ()[1], j/dofy);
+                    else 
+                        return 0.;
+                }
+
             }
-            return;
-        };
+            else
+            {
+                if(i/_current.getNQ()[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
+                        return _B[0].coeff(i%_current.getNQ()[0],j%dofx);
+                    else 
+                        return 0.;
+            } 
+                
+        }
+
+        double transpose(const unsigned int& i/* nqx*nqy*DIM */, const unsigned int& j/* nqx*nqy */) const
+        {
+            return this->operator()(j,i);
+                
+        }
+
+        
+
+    private:
+        const std::array<SparseMatrix<double>,DIM>& _B;
+        const Element<DIM>& _current;
+        const unsigned int& _r;
+    };
+
+    //  Class for D_cell extension form D_ref matrix
+    
+    template<typename Derived, unsigned int DIM>
+    class ExtendedD: public Eigen::EigenBase<Derived>
+    {
+    public:
+        ExtendedD() = default;
+        ExtendedD(const SparseMatrix<double> &A)
+        : _A(A)
+        {}
 
 
-        // A member function to evaluate Legendre polynomials of degree n at x coordinates, using the three term relation
-        static void legendre_pol(const std::vector<double> &x, const unsigned int &n, std::vector<double> &pol);
+        int rows() const
+        {
+            return _A.rows() * DIM;
+        }
 
+        int cols() const
+        {
+            return _A.cols() * DIM;
+        }
 
-        // A member function to evaluate the nodes and weights of the Legendre Gauss Lobatto formulae on the interval [-1, 1];
-        // the solution is then stored inside the _nodes and _weights members
-        void LGL_quadratures(const unsigned int &n/*number of nodes*/);
+        // Return sub-matrix in each iteration
+        double operator()(const unsigned int& i, const unsigned int& j) const
+        {
+            if( i == j)
+                return _A.coeff(i/DIM, j/DIM);
+            else
+                return 0.;
+        }
 
-        // A member function to evaluate the nodes and weights of the Legendre Gauss Lobatto formulae on the interval [a, b];
-        void LGL_quadratures(const unsigned int &n/*number of nodes*/,const double &a, const double &b);
+        // Operator * overloading to support multiplication with custom expression class (coeff * D_ref)
+        SparseMatrix<double> operator*(const double& coeff) const
+        {
+            SparseMatrix<double> result(this->rows(), this->rows());
 
+            for (int i = 0; i < this->rows(); ++i)
+                    result.coeffRef(i, i) += coeff * this->operator()(i, i);
 
+            return result;
+        }
 
-        // standard getters
-        const std::vector<double>& getN() const;
-        const std::vector<double>& getW() const;
-
-        ~Quadrature() = default;
+    private:
+        const SparseMatrix<double>& _A;
     };
 
 
 
+    //  Class for J_cell extention from Jacobian of the element
+    template<typename Derived, unsigned int DIM>
+    class ExtendedJ: public Eigen::EigenBase<Derived>
+    {
+    public:
+        ExtendedJ() = default;
+        ExtendedJ(const MatrixXd &A, const Element<DIM>& geoele)
+        : _A(A),
+        _current(geoele)
+        {}
+
+        int rows() const
+        {
+            return _A.rows()*(DIM==1?_current.getNQ()[0]:_current.getNQ()[0]*_current.getNQ()[DIM-1]);
+        }
+
+        int cols() const
+        {
+            return _A.cols()*(DIM==1?_current.getNQ()[0]:_current.getNQ()[0]*_current.getNQ()[DIM-1]);
+        }
+
+        // Return sub-matrix in each iteration
+        double operator()(const unsigned int& i, const unsigned int& j) const
+        {
+
+            if constexpr(DIM == 2)
+            {
+
+                if(i%2 == 0 /* row is even*/)
+                {
+                    if(j%2 == 0 /*col is even*/ && i == j /*on the diagonal*/ )
+                    {
+                        return _A(0, 0);
+                    }
+                    else if(j%2 == 1 /*col is */ && j == i+1 /*on the upper diagonal*/)
+                    {
+                        return _A(0,1);
+                    }
+                    else
+                        return 0.;
+                }
+                else /*row is odd*/
+                {
+                    if(j%2 == 0 /*col is even*/ && j == i-1 /*on the lower diagonal*/)
+                    {
+                        return _A(1, 0);
+                    }
+                    else if(j%2 == 1/*col is odd*/ && j == i/*on the diaglona*/)
+                    {
+                        return _A(1,1);
+                    }
+                    else
+                        return 0.;
+                }
+
+            }
+            else
+            {
+                if(i == j /*on the diagonal*/)
+                    return _A(0,0);
+            }
+                
+        }
+
+        // Operator * overloading to support multiplication with custom expression class (J_cell^invT * B_cell)
+        MatrixXd operator*(const ExtendedB<SparseMatrix<double>,DIM> &B) const
+        {
+
+            SparseMatrix<double> result(this->rows(), B.cols());
+            for (int i = 0; i <this->rows(); ++i)
+            {
+                for (int j = 0; j < B.cols(); ++j)
+                {
+                    for (int k = 0; k < this->cols(); ++k)
+                    {
+                        result.coeffRef(i, j) += this->operator()(i, k) * B(k, j);
+                    }
+                        
+                }
+
+
+            }
+            return result;
+        }
+
+
+        double transpose(const unsigned int& i, const unsigned int& j) const
+        {
+            return this->operator()(j,i);
+        }
+
+        
+
+    private:
+        const MatrixXd& _A;
+        const Element<DIM>& _current;
+    };
+
 }
+
+
+
+
+//  ==========================================================================
+
+
 
 
 
