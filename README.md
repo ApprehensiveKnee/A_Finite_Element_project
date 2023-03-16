@@ -100,7 +100,8 @@ two main approaches where considered when parallelising the code, both of them c
 Idealy it would be better to have a single lock for each coefficinet of the matrix, but doing so would result in terrible performances due to the use of lock's overheads. To mitigate such phenomena, the idea would be to define a resticted number of locks: specifically, we define a set of lock to partition the global matrix into sub-matrixes. Each time a thread accesses an element of one of these blocks, it acquires the lock for the specifc sub-matrix and then returns it when it has finished updating the coefficient.
 To obtain a better performance we also use a **_try lock_ mechanism**.
 
-- The second approach would require using some **local support** varibles, private to each thread: each one of them creates a vector of local matrixes and updates them. Once all the threads have finished, we reduce the matrixes on the global one.
+- The second approach would require using some **local support** varibles, private to each thread: each one of them creates a unordered map storing the non-zero elements. To do so, the keys of such maps are pairs of unsigned integers, representing the indexes of the global matrix. After the computation of the local matrixes is done, each thread "loads its contribution" onto the global matrix serially.
+A slightly different approach would be to consider vector os Eigen matrixes for each thread to map onto the global one at the end of the computation phase. Again the compression onto the global matrix would have to be done serially as to avoid **race conditions**
 
 ## References
 ---
