@@ -76,9 +76,7 @@ void serialSolver::solve(const bool& print, std::ostream& out)
     }
     
     std::cout << "\nSolution computed in #iterations " << solver.iterations() <<".\n" << std::endl;
-    
-    // double relative_error = (x - xe).norm() / xe.norm(); // norm() is L2 norm
-    // std::cout << "The relative error is:\n" << relative_error << std::endl;                       
+                          
     return;
 }
 
@@ -164,24 +162,22 @@ void serialSolver::_LocStiff()
 
     // evaluate the diffusion coefficient over the dofs == quadrature_points
 
-    SparseMatrix<double> MU(_dof.dof_per_cell(),_dof.dof_per_cell());
-    for (unsigned int i = 0; i < _dof.dof_per_cell(); i++)
-    {
-        MU.coeffRef(i,i)=_mu.value(_fe.quadrature_point(i,_dof));
-    }
+    // SparseMatrix<double> MU(_dof.dof_per_cell(),_dof.dof_per_cell());
+    // for (unsigned int i = 0; i < _dof.dof_per_cell(); i++)
+    // {
+    //     MU.coeffRef(i,i)=_mu.value(_fe.quadrature_point(i,_dof));
+    // }
 
-    // Compute the local matrix and compress it onto the global matrix using the ID array (_dof.getMap())
-    MatrixXd LocStiff = ((_fe.J_cell_invT() * _fe.B_cell()).transpose()*(_fe.D_cell()*_fe.detJ())*(_fe.J_cell_invT() * _fe.B_cell())) * MU;
-    
-    for(unsigned int i = 0; i < LocStiff.rows(); i++)
+    //Compute the local matrix and compress it onto the global matrix using the ID array (_dof.getMap())
+    MatrixXd LocStiff = ((_fe.J_cell_invT() * _fe.B_cell()).transpose()*(_fe.D_cell()*_fe.detJ())*(_fe.J_cell_invT() * _fe.B_cell()));
+    for(unsigned int i = 0; i < _dof.dof_per_cell(); i++)
     {
-        for(unsigned int j = 0; j <LocStiff.cols(); j++)
+        for(unsigned int j = 0; j <_dof.dof_per_cell(); j++)
         {
-            _system_mat.coeffRef(_dof.getMap()[i][_fe.getCurrent().getId()-1]-1, _dof.getMap()[j][_fe.getCurrent().getId()-1]-1) += LocStiff.coeff(i,j);
+            _system_mat.coeffRef(_dof.getMap()[i][_fe.getCurrent().getId()-1]-1, _dof.getMap()[j][_fe.getCurrent().getId()-1]-1) += LocStiff(i,j)*_mu.value(_fe.quadrature_point(j,_dof));
+
         }
-        
     }
-    
 };
 
 void serialSolver::_LocMass()
@@ -311,8 +307,9 @@ void serialSolver::_apply_boundary()
     for(const Element<DIM>& rect : _mesh.getElems())
     {
         // get the dof for each element for the DoFHandler
-        // and for each dof, see if it is on the boundary (and which boundary)
-        for(unsigned int p = 0; p < _dof.dof_per_cell(); p++)
+        // and for each dof, see if it is on the boundary (and which boundary,
+        // given the element considered is on the boundary too)
+        for(unsigned int p = 0; p < _dof.dof_per_cell() && rect.getBound(); p++)
         {
             int gindex = _dof.getMap()[p][rect.getId()-1]-1;
             unsigned short bound = _dof.getPoints()[gindex].getBound();
@@ -378,7 +375,7 @@ double serialSolver::_errorL2(const bool& print, std::ostream& out) const
      
     if(print)
     {
-        out << "Norm L2 of error computed: " << std::sqrt(sum) << std::endl;
+        out << "Norm L2 of error computed: " << std::scientific << std::sqrt(sum) << std::endl;
     }
         
     return std::sqrt(sum);
@@ -391,166 +388,7 @@ double serialSolver::_errorH1(const bool& print,std::ostream& out)
     // first define the temp variable to store the sum of 
 
     double sum(0);
-    /*
-    // A reorganization of the solution is in order as to better "move around" while computing the evaluation of the gradient
-    // For this purpouse we generate a 2D array to store the values of the solution "as they would appear of the grid": essentially
-    // first all the values of the solution on the first row of points (y = 0, x = 0,1,2,... ), then all the values on the second row of points (y = 1, x= 0,1,2,...) and so on
-
-
-    const unsigned int nx = (_mesh.get_nEx()+1)+(_fe.getDeg()-1)*_mesh.get_nEx();
-    const unsigned int ny = (_mesh.get_nEy()+1)+(_fe.getDeg()-1)*_mesh.get_nEy();
-    std::vector<std::vector<double>>sol(nx, std::vector<double>(ny));
-    for(unsigned int i = 0; i < ny; ++i)
-    {
-        for(unsigned int j = 0; j < nx; ++j)
-        {
-            if(j < _fe.getDeg()+1)
-            {
-                sol[i][j] = _sol.coeff(i*(_fe.getDeg()+1)+j);
-            }
-            else
-            {
-                sol[i][j] =_sol.coeff( i*_fe.getDeg()+ j + ((ny-1)*(_fe.getDeg()*((j-1)/_fe.getDeg())+1)));
-            }
-            //std::cout << sol[i][j] << " ";
-        }
-        //std::cout << std::endl;
-        
-    }
-
-    // Allocate the resources for the components of the gradient of the approximated solution
-    std::vector<double> dy(_dof.getPoints().size());
-    std::vector<double> dx(_dof.getPoints().size());
-    double hx = (_dof.getPoints()[1].getX() - _dof.getPoints()[0].getX()); //step in x direction
-    double hy = (_dof.getPoints()[_dof.getDeg()[0]+1].getY() - _dof.getPoints()[0].getY()); //step in y direction
-
     
-    for(unsigned int i = 0; i < ny; ++i)
-    {
-        for(unsigned int j = 0; j < nx; ++j)
-        {
-            unsigned int ind;
-            if(j < _fe.getDeg()+1)
-            {
-                ind = i*(_fe.getDeg()+1)+j;
-            }
-            else
-            {
-                ind = i*_fe.getDeg()+ j + ((ny-1)*(_fe.getDeg()*((j-1)/_fe.getDeg())+1));
-            }
-            // for the points inside the 2D domain...
-            if(i != 0 && j != 0 && i != ny-1 && j !=nx-1)
-            {
-                // ...evalute the derivative with the central finite difference
-                dy[ind] = (sol[i + 1][j] - sol[i - 1][j]) / (2 * hy);
-                dx[ind] = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
-            }
-            else // otherwhise use some other finite difference method
-            {
-                if(i == 0)
-                {
-                    //evaluate dy by forward finite difference method means
-                    dy[ind] = (sol[i + 1][j] - sol[i][j]) / hy;
-                    if(j == 0)
-                    {
-                        //evaluate dx by forward finite difference method means
-                        dx[ind] = (sol[i][j+1] - sol[i][j]) / hx;
-                    }
-                    else if (j == nx-1)
-                    {
-                        //evaluate dx by backwards finite difference method means
-                        dx[ind] = (sol[i][j] - sol[i][j-1]) / hx;
-                    }
-                    else
-                    {
-                        //evaluate dx by central finite difference method means
-                        dx[ind] = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
-                    }
-                }
-                else if(i == ny-1)
-                {
-                    //evaluate dy by backwards finite difference method means
-                    dy[ind] = (sol[i][j] - sol[i-1][j]) / hy;
-                    if(j == 0)
-                    {
-                        //evaluate dx by forward finite difference method means
-                        dx[ind] = (sol[i][j+1] - sol[i][j]) / hx;
-                    }
-                    else if (j == nx-1)
-                    {
-                        //evaluate dx by backwards finite difference method means
-                        dx[ind] = (sol[i][j] - sol[i][j-1]) / hx;
-                    }
-                    else
-                    {
-                        //evaluate dx by central finite difference method means
-                        dx[ind] = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
-                    }
-
-                }
-                else
-                {
-                    //evaluate dy by central finite difference method means
-                    dy[ind] = (sol[i+1][j] - sol[i-1][j]) / (2*hy);
-                    if(j == 0)
-                    {
-                        //evaluate dx by forward finite difference method means
-                        dx[ind] = (sol[i][j+1] - sol[i][j]) / hx;
-                    }
-                    else if (j == nx-1)
-                    {
-                        //evaluate dx by backwards finite difference method means
-                        dx[ind] = (sol[i][j] - sol[i][j-1]) / hx;
-                    }
-                    else
-                    {
-                        //evaluate dx by central finite difference method means
-                        dx[ind] = (sol[i][j + 1] - sol[i][j - 1]) / (2 * hx);
-                    }
-                } 
-            }
-
-            
-        }
-        
-    }
-
-    // Loop over the elements
-    for(const Element<DIM>& e: _mesh.getElems())
-    {
-        // Loop over all the quadrature points of the element
-        for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
-        {
-            for (unsigned int i = 0; i < _fe.getNQ()[0]; i++)
-            {
-                // determine the index of local quadrature point currently considered
-                unsigned int q = (j)*_fe.getNQ()[0]+i;
-                // representing the global index of the node currently considered
-                unsigned int ind = _dof.getMap()[q][e.getId()-1]-1;
-
-                // compute the local weight
-                double weight = (_fe.getQuad()[0].getW()[i] *
-                                 (1. / _fe.getJ().coeff(0, 0)) *
-                                 _fe.getQuad()[DIM - 1].getW()[j] *
-                                 (1. / _fe.getJ().coeff(1, 1)));
-
-                //compute the integral
-                sum += (_e.value(_dof.getPoints()[ind]) - _sol[ind]) *
-                           (_e.value(_dof.getPoints()[ind]) - _sol[ind]) *
-                           weight +
-                       ((dx[ind] - _e.grad(_dof.getPoints()[ind])[0]) *
-                            (dx[ind] - _e.grad(_dof.getPoints()[ind])[0]) +
-                        (dy[ind] - _e.grad(_dof.getPoints()[ind])[1]) *
-                            (dy[ind] - _e.grad(_dof.getPoints()[ind])[1])) *
-                           weight;
-            }
-            
-            
-        }
-            
-    }
-
-    */
 
    //  Loop over each element 
    for(const Element<DIM>& elem : _mesh.getElems())
@@ -578,17 +416,11 @@ double serialSolver::_errorH1(const bool& print,std::ostream& out)
             }
         }
 
-        // std::cout << "Un"<<std::endl;
-        // std::cout <<un <<"\n"<< std::endl;
 
         //Compute the numerical derivative
         MatrixXd ux = (_fe.getJ().coeff(0, 0))*(_fe.getB()[0]* un);
         MatrixXd uy = (_fe.getJ().coeff(1, 1))*(_fe.getB()[0]* un.transpose()).transpose();
 
-        // std::cout << "Ux"<<std::endl;
-        // std::cout <<ux <<"\n"<< std::endl;
-        // std::cout << "Uy"<<std::endl;
-        // std::cout <<uy <<"\n"<< std::endl;
 
         // Loop over the quadrature points of the element to sum all the differences over the quadrature points
         for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
@@ -616,7 +448,7 @@ double serialSolver::_errorH1(const bool& print,std::ostream& out)
    }
 
    if(print)
-        out << "Norm H1 of error computed: " << std::sqrt(sum) << std::endl;
+        out << "Norm H1 of error computed: " << std::scientific <<std::sqrt(sum) << std::endl;
 
     return  std::sqrt(sum);
     
