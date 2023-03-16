@@ -87,13 +87,13 @@ public:
 
     //definition of a handle-member/interface with the mesh member variable to
     //decide wether to read the mesh or generate a basic one within the program
-    virtual void setup(const unsigned short &option, const std::string& = 0);
+    void setup(const unsigned short &option, const std::string& = 0);
     //a method to assemble the sistem
-    virtual void assemble();
+    void assemble();
     // a method to solve the sistem
     void solve(const bool& print = false, std::ostream& out= std::cout);
     // a method to process the output data and visualize the output
-    virtual void process(const std::string&);
+    void process(const std::string&);
     // a method to define the convergence test
     void  convergence();
 
@@ -103,20 +103,20 @@ public:
     const VectorXd& getSol() const;
 
     //destructor
-    virtual ~serialSolver() = default;
+    ~serialSolver() = default;
 
-//protected:
+protected:
     // the methods compute the local matrix for the current analyzed element
     // and compress it onto the system matrix
     // (plus a method to apply Dirichelet boundary conditions)
-    virtual void _LocStiff();
-    virtual void _LocMass();
-    virtual void _LocRHS();
-    virtual void _apply_boundary();
+    void _LocStiff();
+    void _LocMass();
+    void _LocRHS();
+    void _apply_boundary();
     //some methods to compute the global system
-    virtual void _computeStiff();
-    virtual void _computeMass();
-    virtual void _computeRHS();
+    void _computeStiff();
+    void _computeMass();
+    void _computeRHS();
     
 
     // // a method to export the solution and mesh on a VTK file
