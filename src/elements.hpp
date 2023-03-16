@@ -26,7 +26,7 @@ inline constexpr unsigned r = 2;
 
 using namespace Eigen;
 
-//______________________________________________________________
+//========================================================================================================
 
 
 //a class to store the coordinates of the relevant points 
@@ -146,8 +146,7 @@ public:
 
 };
 
-//______________________________________________________________
-
+//========================================================================================================
 template<unsigned int DIM>
 class Node : public Point<DIM>
 {
@@ -320,15 +319,15 @@ public:
 };
 
 
-// Some simple concepts to be used in the Element class
+//============================= SOME SIMPLE CONCEPTS ======================================
 template <typename T>
-concept IsMatrix = std::is_same_v<T, Eigen::Matrix2d>;
+concept IsMatrix2 = std::is_same_v<T, Eigen::Matrix2d>;
 template <typename T>
 concept IsDouble = std::is_same_v<T, double>;
 template <typename T>
 concept IsTuple =  std::is_same_v<T, std::tuple<double,double>>;
 
-
+//========================================================================================================
 
 template <unsigned int DIM>
 class Element
@@ -453,7 +452,7 @@ public:
     // a method to compute the jacobian of a specific element, describing the affine tranformation
     
     template<typename T>
-    requires (DIM == 2 && IsMatrix<T>) || (DIM = 1 && IsDouble<T>)
+    requires (DIM == 2 && IsMatrix2<T>) || (DIM = 1 && IsDouble<T>)
     T jacobian() const
     {
         if constexpr (DIM == 1)
