@@ -17,12 +17,14 @@
 #include <memory>
 #include <type_traits>
 #include <concepts>
+#include <filesystem>
 #include <Eigen/Dense>
 #include <Eigen/SparseCore>
+#include <unsupported/Eigen/SparseExtra>
 
 // Define some defualt constant quantities...
 inline constexpr double tol= 1.e-16;
-inline constexpr unsigned r = 2;
+inline constexpr unsigned r = 3;
 
 using namespace Eigen;
 
@@ -65,7 +67,7 @@ public:
     Point(){};
     // Constructor
     Point(const double &x, const double &y, const unsigned short& boundary):
-        _coord(DIM==1?std::array<double,DIM>{x}:std::array<double,DIM>{x,y}),
+        _coord(initCoord(x,y)),
         _boundary(boundary)
         {};
     // Array constructor
@@ -99,13 +101,7 @@ public:
 
     const double& getY() const
     {
-        if constexpr (DIM == 1)
-        {
-            std::cout << "The method 'setY' can only be called for 2 dimensional problems" << std::endl;
-            return 0;
-        }
-        else
-            return _coord[DIM-1];
+        return _coord[DIM-1];
     };
 
     // Default setters
@@ -138,6 +134,19 @@ public:
         out << "boundary: " << this->getBound() << std::endl;
         
         return;
+    };
+
+    // A static method to correclty initilize the coordinates array
+    static std::array<double, DIM> initCoord(const double &x, const double &y)
+    {
+        if constexpr (DIM == 1)
+        {
+            return std::array<double, DIM>{x};
+        }
+        else
+        {
+            return std::array<double, DIM>{x,y};
+        }
     };
 
     
@@ -363,32 +372,7 @@ private:
     std::array<unsigned int, DIM> _nq;
 public:
     Element(){};
-    // 1D constructors
-    Element(const unsigned int &id,
-            const Node<DIM> &node1,
-            const Node<DIM> &node2,
-            const unsigned short &boundary = 0,
-            const unsigned int &nx = r + 1)
-        : _element_id(id),
-          _nodes({node1, node2}),
-          _boundary(boundary),
-          _nq({nx})
-    {}
-    // 2D constructor
-    Element(const unsigned int &id, 
-    const Node<DIM> &node1,
-    const Node<DIM> &node2,
-    const Node<DIM> &node3,
-    const Node<DIM> &node4,
-    const unsigned short& boundary = 0, 
-    const unsigned int& nx = r+1, 
-    const unsigned int& ny = r+1)
-        :_element_id(id),
-        _nodes({node1, node2, node3, node4}),
-        _boundary(boundary),
-        _nq({nx,ny})
-        {}
-    // Vector constructor
+    // Constructor
         Element(const unsigned int &id,
                 const std::vector<Node<DIM>> &nodes,
                 const unsigned short &boundary = 0,
@@ -397,7 +381,7 @@ public:
             : _element_id(id),
               _nodes(nodes),
               _boundary(boundary),
-              _nq((DIM == 2) ? std::array<unsigned int,DIM>{nx, ny} : std::array<unsigned int,DIM>{nx})
+              _nq(initNQ(nx,ny))
         {}
 
     // Getter:gets the id of the element
@@ -452,7 +436,7 @@ public:
     // a method to compute the jacobian of a specific element, describing the affine tranformation
     
     template<typename T>
-    requires (DIM == 2 && IsMatrix2<T>) || (DIM = 1 && IsDouble<T>)
+    requires (DIM == 2 && IsMatrix2<T>) || (DIM == 1 && IsDouble<T>)
     T jacobian() const
     {
         if constexpr (DIM == 1)
@@ -474,7 +458,7 @@ public:
     };
     // a method to compute the inverse transformation onto the refernce element [-1,1] in 1D or [-1,1]x[-1,1] in 2D
     template<typename T>
-    requires (DIM == 2 && IsTuple<T>) || (DIM = 1 && IsDouble<T>)
+    requires (DIM == 2 && IsTuple<T>) || (DIM == 1 && IsDouble<T>)
     T inverseMap(const double &x, const double &y = 0) const
     {
         if constexpr (DIM == 1)
@@ -493,9 +477,9 @@ public:
             return { x_ref(0) - 1.,x_ref(1) - 1.}; 
         }
     };
-    // a member to compute the direct transformation from the reference element
+    // a method to compute the direct transformation from the reference element
     template<typename T>
-    requires (DIM == 2 && IsTuple<T>) || (DIM = 1 && IsDouble<T>)
+    requires (DIM == 2 && IsTuple<T>) || (DIM == 1 && IsDouble<T>)
     T directMap(const double &x_r, const double &y_r = 0) const
     {
         if constexpr (DIM == 1)
@@ -515,6 +499,21 @@ public:
         }
     };
 
+    // a static member to correcly initialize the quadrature degs
+    static std::array<unsigned int, DIM> initNQ(const unsigned int &nx, const unsigned int &ny)
+    {
+        if constexpr (DIM == 1)
+        {
+            return {nx};
+        }
+        else if constexpr (DIM == 2)
+        {
+            return {nx, ny};
+        }
+    };
+
+
+    // Destructor
     virtual ~Element() = default;
 };
 

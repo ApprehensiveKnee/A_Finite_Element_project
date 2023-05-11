@@ -57,12 +57,18 @@ public:
     // The first two parameters are used to perform a first resriction on the generality of the Elment class: they set the number of quadrature points
     // along the x and y directions to be the same for all the elements of the mesh (in principly you could still choose different number of quadrature points for the two dimensions) 
     void setMesh_csv(const std::string&,const unsigned int& = r+1, const unsigned int& = r+1);
-    // Member function to generate a basic omogeneous mesh over the domain [a,b] (in 1D or [a,b]x[c,d] in 2D). We must pass some parameters to the function:
+    // Method to genereate a basic omogeneous mesh over the domain [a,b] in 1D
     // ->limits of the domain
     // -> number of segment elements
     // -> number of quadrature nodes per each element
-    void genMesh(const std::array<double,DIM> & , const std::array<double,DIM> & ,const std::array<unsigned int,DIM>&, const std::array<unsigned int,DIM>& = r+1 );
-    
+    void genMesh(const std::array<double,2> & , const unsigned int&, const unsigned int& = r+1 );
+    // Member function to generate a basic omogeneous mesh over the domain [a,b]x[c,d] in 2D) We must pass some parameters to the function:
+    // ->limits of the domain
+    // -> number of segment elements
+    // -> number of quadrature nodes per each element
+    void genMesh(const std::array<double,2> & , const std::array<double,2> & ,const std::array<unsigned int,2>&, const std::array<unsigned int,2>& = r+1 );
+
+    // Destructor
     ~Mesh() = default;
 };
 
@@ -84,7 +90,7 @@ private:
 public:
     // Constructor
     DoFHandler(const unsigned int &degX, const unsigned int &degY )
-        :_r(DIM==1?std::array<unsigned int,DIM>{degX}:std::array<unsigned int,DIM>{degX,degY}),
+        :_r(initDeg(degX,degY)),
         _gnodes(0)
         {};
     // A member to get the degree of the FE space
@@ -128,7 +134,7 @@ public:
                                                 const unsigned int &degreeY = 0/*degree of the polynomial along y axis*/,
                                                 const unsigned int &nElementsY = 0/*number of elements along y axis*/)
     {
-        if constexpr (DIM == 1)
+        if constexpr(DIM == 1)
         {
 
 
@@ -147,7 +153,7 @@ public:
             return nov;
 
         }
-        else if constexpr (DIM == 2)
+        else
         {
 
             unsigned int npdx = degreeX +1;
@@ -218,11 +224,6 @@ public:
             return nov;
 
         }
-        else
-        {
-            std::vector<std::vector<unsigned int>> nov;
-            return nov; 
-        }
         
 
     };
@@ -237,7 +238,7 @@ public:
             return (this->getDeg()[0] + 1);
     };
 
-    // A member to generate the coordiates of all the points relevant to compute the solution.
+    // A method to generate the coordiates of all the points relevant to compute the solution.
     //this computed information is stored inside a vector of points
     const std::vector<Point<DIM>>& genPoints(const Mesh<DIM>& mesh)
     {
@@ -257,12 +258,12 @@ public:
             // To do so, define a quadrature object...
             FETools::Quadrature qrx;
             // And compute the LGL nodes on the reference interval(just once  --> see the comments on the 2D code)
-            qrx.LGL_quadratures(degX);
+            qrx.LGL_quadratures(degX+1);
             // For the first element only: map the coordinates onto the specific element and
             // emplace the points on the gnodes vector
             for(unsigned int q = 0; q < qrx.getN().size(); ++q)
             {
-                double x = mesh.getElems()[0].template directMap(qrx.getN()[q]);
+                double x = mesh.getElems()[0].template directMap<double>(qrx.getN()[q]);
                 _gnodes.emplace_back(x,0,0);
             }
 
@@ -270,9 +271,9 @@ public:
             //(The first coordinate of the internal point of an element is given as the last coordinate for the previous element)
             for(auto elem = mesh.getElems().begin()+1; elem < mesh.getElems().end(); ++elem)
             {
-                for(unsigned int q = 0; q < qrx.getN().size(); ++q)
+                for(unsigned int q = 1; q < qrx.getN().size(); ++q)
                 {   
-                    double x = elem.template directMap(qrx.getN()[q]);
+                    double x = elem->template directMap<double>(qrx.getN()[q]);
                     _gnodes.emplace_back(Point<DIM>(x,0,0));
                 }
             }
@@ -284,7 +285,7 @@ public:
 
 
         }
-        else if constexpr(DIM == 2)
+        else
         {
 
             auto [degX,degY] = this->getDeg();
@@ -302,8 +303,10 @@ public:
             FETools::Quadrature qrx;
             FETools::Quadrature qry;
             // Compute the quadrature points (the internal nodes are computed based off
-            // the degree of the FE space used: since the value of r is the same for all the 
-            // elements, we compute the LGL nodes just once)
+            // the degree of the FE space used: since the value of r is supposed to be  the same for all the 
+            // elements, we compute the LGL nodes just once - PLEASE NOTICE: the element class has been created
+            // with a member that represents the degree of the FE space used for that specific element. This was done to allow
+            // for possible future extensions of the code to different FE spaces for different elements)
             qrx.LGL_quadratures(degX+1);
             qry.LGL_quadratures(degY+1);
             
@@ -387,6 +390,19 @@ public:
         }
     };
 
+    // Finally, a static method to allow the correct initialization of the array of degrees of the finite element spaces along the directions
+    static std::array<unsigned int, DIM> initDeg(const unsigned int &degX, const unsigned int &degY)
+    {
+        if constexpr(DIM == 1)
+        {
+            return std::array<unsigned int,DIM>{degX};
+        }
+        else
+        {
+            return std::array<unsigned int,DIM>{degX,degY};
+        }
+    };
+
 };
 
 
@@ -402,7 +418,7 @@ template<unsigned int DIM>
 const unsigned int& Mesh<DIM>::get_nEx() const{return _nElems[0];};
 
 template<unsigned int DIM>  
-const unsigned int& Mesh<DIM>::get_nEy() const{if constexpr (DIM == 2)return _nElems[1];else return 0;};
+const unsigned int& Mesh<DIM>::get_nEy() const{return _nElems[DIM-1];};
 
 template<unsigned int DIM> 
 const std::vector<Node<DIM>>& Mesh<DIM>::getNodes() const
@@ -425,13 +441,13 @@ void Mesh<DIM>::printMesh(std::ostream& out) const
     out << "The coordinates of the nodes are:"<<std::endl;
 
     out << "Node: Coordinates, Boundary"<< std::endl;
-    for(auto i : _nodes)
+    for(const Node<DIM>& i : _nodes)
     {
         i.printNode(out);
     }
     out << "The elements are:"<<std::endl;
     
-    for(auto i : _elems)
+    for(const Element<DIM>& i : _elems)
     {
         i.printElem(out);
     }
@@ -447,7 +463,16 @@ void Mesh<DIM>::setNum(const std::string& file_name)
     // global_numbers.close();
 
     std::string linestr,word;
-    std::fstream global_numbers ("../mesh/matlab_mesh_generator/meshes/numbers_"+file_name+".csv", std::ios::in);
+    std::fstream global_numbers;
+
+    // 1D case
+    if constexpr(DIM == 1)
+        global_numbers.open("../mesh/matlab_mesh_generator/meshes/1D_meshes/numbers_"+file_name+".csv", std::ios::in);
+        
+    // 2D case
+    else
+        global_numbers.open("../mesh/matlab_mesh_generator/meshes/2D_meshes/numbers_"+file_name+".csv", std::ios::in);
+
     if(global_numbers.is_open())
     {
         std::getline(global_numbers, linestr); //header - throw away
@@ -468,9 +493,10 @@ void Mesh<DIM>::setNum(const std::string& file_name)
         
 
 
-    }else
+    }
+    else
     {
-        std::cout << "Could not open the numbers_"+file_name+".csv" << std::endl;
+        std::cout << "Could not open numbers_"+file_name+".csv" << std::endl;
         _nNodes = 0;
         std::iota(_nElems.begin(), _nElems.end(), 0);
     }
@@ -509,7 +535,7 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
 
         
         //read nodes coordinates from file
-        std::fstream nodes ("../mesh/matlab_mesh_generator/1D/nodes_coordinates_"+file_name+".csv", std::ios::in);
+        std::fstream nodes ("../mesh/matlab_mesh_generator/meshes/1D_meshes/nodes_coordinates_"+file_name+".csv", std::ios::in);
         if(nodes.is_open())
         {
             std::getline(nodes, linestr); // header row - throw away
@@ -524,13 +550,16 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
                 std::getline(str,word,',');
                 std::istringstream(word)>>holderX;
                 //create a temp Node and store it in the vector
-                Node<DIM> tempnode(holder_id, holderX, 0);
+                Node<DIM> tempnode(holder_id, {holderX}, 0.);
                 _nodes.emplace_back(tempnode);
             }
             //set boundary flag at the extremis of the considered interval
             _nodes[0].setBound(1);
             _nodes[this->get_nNodes()-1].setBound(2);
             nodes.close();
+
+           
+            
         }
         else
         std::cout<<"Could not open the nodes file (nodes_coordinates_ "+ file_name +")\n";
@@ -538,7 +567,7 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
 
         unsigned int holder1, holder2;
         //read the elements from file
-        std::fstream elems ("../mesh/matlab_mesh_generator/1D/elements_vertexes_"+file_name+".csv", std::ios::in);
+        std::fstream elems ("../mesh/matlab_mesh_generator/meshes/1D_meshes/elements_vertexes_"+file_name+".csv", std::ios::in);
         if(elems.is_open())
         {
             std::getline(elems, linestr); // header row - throw away
@@ -559,7 +588,6 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
                 //create the element to be added to the list of elements using the paramethers parsed
                 // in the csv file
                 Element<DIM> temp(holder_id, {_nodes[holder1-1], _nodes[holder2-1]}, 0, nqx, 0);
-                
                 //finally, we insert the new element in the element vector
                 _elems.emplace_back(temp);
                 
@@ -571,10 +599,10 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
             
         }
         else
-        std::cout<<"Could not open the elements file (element_vertices_"+file_name+".csv)\n";
+            std::cout<<"Could not open the elements file (element_vertices_"+file_name+".csv)\n";
 
     }
-    else if constexpr (DIM == 2)
+    else
     {
         //generate and fill the mesh
 
@@ -589,7 +617,7 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
 
         
         //read nodes coordinates from file
-        std::fstream nodes ("../mesh/matlab_mesh_generator/meshes/nodes_coordinates_"+file_name+".csv", std::ios::in);
+        std::fstream nodes ("../mesh/matlab_mesh_generator/meshes/2D_meshes/nodes_coordinates_"+file_name+".csv", std::ios::in);
         if(nodes.is_open())
         {
             std::getline(nodes, linestr); // header row - throw away
@@ -610,7 +638,7 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
                 std::getline(str,word,',');
                 std::istringstream(word)>>boundary;
                 //create a temp Node and store it in the vector
-                Node<DIM> tempnode(holder_id, holderX, holderY, boundary);
+                Node<DIM> tempnode(holder_id, {holderX, holderY}, boundary);
                 _nodes.emplace_back(tempnode);
             }
             nodes.close();
@@ -621,7 +649,7 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
 
         unsigned int holder1, holder2, holder3, holder4;
         //read the elements from file
-        std::fstream elems ("../mesh/matlab_mesh_generator/meshes/elements_vertexes_"+file_name+".csv", std::ios::in);
+        std::fstream elems ("../mesh/matlab_mesh_generator/meshes/2D_meshes/elements_vertexes_"+file_name+".csv", std::ios::in);
         if(elems.is_open())
         {
             std::getline(elems, linestr); // header row - throw away
@@ -663,195 +691,199 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
         else
         std::cout<<"Could not open the elements file (element_vertice_"+file_name+".csvs)\n";
     }
-    else
-    {
-        std::cout << "DIM is out of range" << std::endl;
-        return;
-    }
+
+    return;
     
 
     
 };
 
-template<unsigned int DIM> 
-void Mesh<DIM>::genMesh(const std::array<double,DIM>& x,
-                        const std::array<double,DIM>& y,
-                        const std::array<unsigned int,DIM>& ne,
-                        const std::array<unsigned int,DIM>& nq)
+template <unsigned int DIM>
+void Mesh<DIM>::genMesh(const std::array<double, 2> &x,
+                        const unsigned int& ne,
+                        const unsigned int& nq)
 {
+
     _nodes.clear();
     _elems.clear();
     
-    if constexpr(DIM ==1)
+    _nNodes = ne +1;
+    _nElems[0] = ne;
+    for(unsigned int i = 0; i<ne +1; ++i)
     {
-        _nNodes = ne[0] +1;
-        _nElems[0] = ne[0];
-        for(unsigned int i = 0; i<ne[0] +1; ++i)
-        {
-            double p = x[0] + i*(x[1]-x[0])/ne[0];
-            Node<DIM> current_node(i+1,p, 0);
-            _nodes.emplace_back(current_node);        
-        }
-
-        //once the nodes have been created, impose the boundary flag onto the nodes at the extremis
-        _nodes[0].setBound(1);
-        _nodes[this->get_nNodes() -1].setBound(2);
-
-        std::vector<std::vector<unsigned int>> temp = DoFHandler<DIM>::indexMapping(1,ne[0]);
-        for(unsigned int i = 0; i< temp[0].size(); ++i)
-        {
-            //set the vertexes indexes and coordinates
-            Element<DIM> current_elem(i+1,{_nodes[temp[0][i]-1], _nodes[temp[1][i]-1]}, 0, nq[0]);
-            _elems.emplace_back(current_elem);
-            
-        }
-
-        //onche the elements have been created, impose the boundary flag onto the elements at the extremis
-        _elems[0].setBound(1);
-        _elems[this->get_nElems() -1].setBound(2);
+        double p = x[0] + i*(x[1]-x[0])/ne;
+        Node<DIM> current_node(i+1,{p}, 0);
+        current_node.printNode();
+        _nodes.emplace_back(current_node);        
     }
-    else
+
+    //once the nodes have been created, impose the boundary flag onto the nodes at the extremis
+    _nodes[0].setBound(1);
+    _nodes[this->get_nNodes() -1].setBound(2);
+
+    std::vector<std::vector<unsigned int>> temp = DoFHandler<DIM>::indexMapping(1,ne);
+    for(unsigned int i = 0; i< temp[0].size(); ++i)
     {
-        _nodes.clear();
-        _elems.clear();
+        //set the vertexes indexes and coordinates
+        Element<DIM> current_elem(i+1,{_nodes[temp[0][i]-1], _nodes[temp[1][i]-1]}, 0, nq, 0);
+        _elems.emplace_back(current_elem);
         
-        _nNodes = (ne[0] + 1)*(ne[1] + 1);
-        _nElems[0] = ne[0];
-        if constexpr (DIM == 2)
-            _nElems[1] = ne[1];
+    }
 
+    //onche the elements have been created, impose the boundary flag onto the elements at the extremis
+    _elems[0].setBound(1);
+    _elems[this->get_nElems() -1].setBound(2);
+
+}
+    
+
+template <unsigned int DIM>
+void Mesh<DIM>::genMesh(const std::array<double, 2> &x,
+                        const std::array<double, 2> &y,
+                        const std::array<unsigned int, 2> &ne,
+                        const std::array<unsigned int, 2> &nq)
+{
+    _nodes.clear();
+    _elems.clear();
+
+
+    _nNodes = (ne[0] + 1)*(ne[1] + 1);
+    _nElems[0] = ne[0];
+    if constexpr (DIM == 2)
+        _nElems[1] = ne[1];
+
+    {
+
+        //first generate all the nodes coordinates and later associate index
+        //then scan the vector created and attribute a global index to a certain pair of coordinates
+        //so as to create a vector and enlarge the vector of nodes and 2D elements
+        double p = x[0];
+        double q = y[0];
+        std::vector<std::pair<double,double>> temp(0);
+        unsigned int global_index(1);
+        unsigned int index(0);
+        for(unsigned int row = 0; row < ne[1]+1; row ++)
         {
-
-            //first generate all the nodes coordinates and later associate index
-            //then scan the vector created and attribute a global index to a certain pair of coordinates
-            //so as to create a vector and enlarge the vector of nodes and 2D elements
-            double p = x[0];
-            double q = y[0];
-            std::vector<std::pair<double,double>> temp(0);
-            unsigned int global_index(1);
-            unsigned int index(0);
-            for(unsigned int row = 0; row < ne[1]+1; row ++)
+            p = x[0];
+            q = y[0] + row*(y[1]-y[0])/ne[1];
+            for(unsigned int col = 0; col < ne[0] +1; col ++)
             {
-                p = x[0];
-                q = y[0] + row*(y[1]-y[0])/ne[1];
-                for(unsigned int col = 0; col < ne[0] +1; col ++)
+                p =x[0] + col*(x[1]-x[0])/ne[0];
+                temp.emplace_back(p,q);
+                
+                if(col < 2)
                 {
-                    p =x[0] + col*(x[1]-x[0])/ne[0];
-                    temp.emplace_back(p,q);
-                    
-                    if(col < 2)
+                    global_index = 1+ col + 2*row;
+                }
+                else
+                {
+                    global_index = 1+ col*(ne[1]+1) + row;
+                }
+                
+                Node<DIM> current_node(global_index, {temp[index].first, temp[index].second}, 0);
+
+                if(temp[index].second == y[0])// on bottom side
+                {
+                    // check if it is vertex V1
+                    if(temp[index].first == x[0])
                     {
-                        global_index = 1+ col + 2*row;
+                        current_node.setBound(31-1);
                     }
+                    // check if it is vertex V2
+                    else if(temp[index].first == x[0])
+                    {
+                        current_node.setBound(31-2);
+                    }
+                    // otherwise
                     else
                     {
-                        global_index = 1+ col*(ne[1]+1) + row;
+                        current_node.setBound(1);
                     }
-                    
-                    Node<DIM> current_node(global_index, temp[index].first, temp[index].second, 0);
 
-                    if(temp[index].second == y[0])// on bottom side
-                    {
-                        // check if it is vertex V1
-                        if(temp[index].first == x[0])
-                        {
-                            current_node.setBound(31-1);
-                        }
-                        // check if it is vertex V2
-                        else if(temp[index].first == x[0])
-                        {
-                            current_node.setBound(31-2);
-                        }
-                        // otherwise
-                        else
-                        {
-                            current_node.setBound(1);
-                        }
-
-                    }
-                    else if (temp[index].second == y[1])// on top side
-                    {
-                        // check if it is vertex V3
-                        if(temp[index].first == x[0])
-                        {
-                            current_node.setBound(31-3);
-                        }
-                        // check if it is vertex V4
-                        else if(temp[index].first == x[1])
-                        {
-                            current_node.setBound(31-4);
-                        }
-                        // otherwise
-                        else
-                        {
-                            current_node.setBound(3);
-                        }
-
-                    }
-                    else if (temp[index].first == x[0]) // on left side
-                    {
-                        current_node.setBound(4);
-                    }
-                    else if (temp[index].first == x[1]) // on right side
-                    {
-                        current_node.setBound(2);
-                    }
-                    _nodes.emplace_back(current_node);
-                    
-
-                    index ++;
-                    
                 }
-            }
-            std::sort(_nodes.begin(),_nodes.end(),[](const Node<DIM> &a, const Node<DIM> &b){return a.getId() < b.getId();});
+                else if (temp[index].second == y[1])// on top side
+                {
+                    // check if it is vertex V3
+                    if(temp[index].first == x[0])
+                    {
+                        current_node.setBound(31-3);
+                    }
+                    // check if it is vertex V4
+                    else if(temp[index].first == x[1])
+                    {
+                        current_node.setBound(31-4);
+                    }
+                    // otherwise
+                    else
+                    {
+                        current_node.setBound(3);
+                    }
 
-        }
-        
+                }
+                else if (temp[index].first == x[0]) // on left side
+                {
+                    current_node.setBound(4);
+                }
+                else if (temp[index].first == x[1]) // on right side
+                {
+                    current_node.setBound(2);
+                }
+                _nodes.emplace_back(current_node);
+                
 
-        //now create the elements using indexMapping of the DoF Handler class
-        std::vector<std::vector<unsigned int>> temp =DoFHandler<DIM>::indexMapping(1,ne[0],1,ne[1]);
-        for(unsigned int i = 0; i< temp[0].size(); ++i)
-        {
-            unsigned int id = i+1;
-            Element<DIM> current_elem(id,{_nodes[temp[0][i]-1], _nodes[temp[1][i]-1],_nodes[temp[2][i]-1],_nodes[temp[3][i]-1]}, 0, nq[0], nq[1]);
-            if(id < this->get_nEy()+1) // elem is on the the left side
-            {
-                // check for the vetrex V1
-                if(id % this-> get_nEy() == 1)
-                    current_elem.setBound(31-1);
-                // check for the vetrex V4
-                else if(id % this->get_nEy() == 0)
-                    current_elem.setBound(31-4);
-                // otherwise
-                else
-                    current_elem.setBound(4);
+                index ++;
+                
             }
-            else if(id > this->get_nElems() - this->get_nEy()) // elem is on the the right side
-            {
-                // check for the vetrex V2
-                if(id % this-> get_nEy() == 1)
-                    current_elem.setBound(31-2);
-                // check for the vetrex V3
-                else if(id % this->get_nEy() == 0) 
-                    current_elem.setBound(31-3);
-                // otherwise
-                else
-                    current_elem.setBound(2);
-            }
-            else if(id % this-> get_nEy() == 1) // elem is on the bottom side
-            {
-                current_elem.setBound(1);
-            }
-            else if(id % this->get_nEy() == 0) //elem is on the top side
-            {
-                current_elem.setBound(3);
-            }
-        
-            _elems.emplace_back(current_elem);
-            
         }
+        std::sort(_nodes.begin(),_nodes.end(),[](const Node<DIM> &a, const Node<DIM> &b){return a.getId() < b.getId();});
 
     }
+    
+
+    //now create the elements using indexMapping of the DoF Handler class
+    std::vector<std::vector<unsigned int>> temp =DoFHandler<DIM>::indexMapping(1,ne[0],1,ne[1]);
+    for(unsigned int i = 0; i< temp[0].size(); ++i)
+    {
+        unsigned int id = i+1;
+        Element<DIM> current_elem(id,{_nodes[temp[0][i]-1], _nodes[temp[1][i]-1],_nodes[temp[2][i]-1],_nodes[temp[3][i]-1]}, 0, nq[0], nq[1]);
+        if(id < this->get_nEy()+1) // elem is on the the left side
+        {
+            // check for the vetrex V1
+            if(id % this-> get_nEy() == 1)
+                current_elem.setBound(31-1);
+            // check for the vetrex V4
+            else if(id % this->get_nEy() == 0)
+                current_elem.setBound(31-4);
+            // otherwise
+            else
+                current_elem.setBound(4);
+        }
+        else if(id > this->get_nElems() - this->get_nEy()) // elem is on the the right side
+        {
+            // check for the vetrex V2
+            if(id % this-> get_nEy() == 1)
+                current_elem.setBound(31-2);
+            // check for the vetrex V3
+            else if(id % this->get_nEy() == 0) 
+                current_elem.setBound(31-3);
+            // otherwise
+            else
+                current_elem.setBound(2);
+        }
+        else if(id % this-> get_nEy() == 1) // elem is on the bottom side
+        {
+            current_elem.setBound(1);
+        }
+        else if(id % this->get_nEy() == 0) //elem is on the top side
+        {
+            current_elem.setBound(3);
+        }
+    
+        _elems.emplace_back(current_elem);
+        
+    }
+
+
 
 };
 

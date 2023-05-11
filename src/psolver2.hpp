@@ -1,4 +1,3 @@
-
 //===========================================================
 //         HEADER FILE FOR THE CLASS PARALLEL SOLVER 
 //===========================================================
@@ -6,8 +5,8 @@
 
 // OSS: the definitions will be mainly the same, with some slight modifications for support parallel execution with OpenMP
 
-#ifndef PSOL
-#define PSOL
+#ifndef PSOL2
+#define PSOL2
 
 //#include <unordered_map>
 #include "solver.hpp"
@@ -17,46 +16,19 @@
 #endif
 
 
+#define NBLOCKS 4
+
 //================================
 
 using namespace Eigen;
 using namespace FETools;
-
-// =================== DEFINITION OF TEMPLATED HASH FUNCTIONS FOR UNORDERED MAPS OF STD. PAIRS =================
-
-// Here the idea for the hash function has been taken from the Boost libraries
-
-template <class T>
-inline void hash_combine(std::size_t & seed, const T & v)
-{
-  std::hash<T> hasher;
-  seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
-
-namespace std
-{
-  template<typename S, typename T> 
-  struct hash<pair<S, T>>
-  {
-    inline size_t operator()(const pair<S, T> & v) const
-    {
-      size_t seed = 0;
-      ::hash_combine(seed, v.first);
-      ::hash_combine(seed, v.second);
-      return seed;
-    }
-  };
-
-}
-
 
 // ============================================================================================================= 
 
 // The parallel solver class will actively be inheriting form the serial counterpart.
 // The general structure will be the same, yet some methods will be organised "in a parallel setting"
 
-class parallelSolver
+class parallelSolver2
 {
 private:
   static constexpr unsigned int DIM = 2;
@@ -83,18 +55,18 @@ private:
   //defined with Eigen support:
 
   // a matrix to store the system matrix
+  // In this case, we use the Eigen Matrix Type appositly created for multithreading processing environment
   SparseMatrix<double> _system_mat;
   // a vector to store the right hand side of the system
   VectorXd _rhs;
   // a vector to store the solution
   VectorXd _sol;
-  //finally the eigen vector that will eventually contain the solution
       
 public:
   //default contructors
-  parallelSolver() = default;
+  parallelSolver2() = default;
 
-  parallelSolver(const unsigned short &dg)
+  parallelSolver2(const unsigned short &dg)
       :_mesh(),
       _dof(dg,dg),
       _mu(),
@@ -107,7 +79,7 @@ public:
       _sol()
       {}
   
-  void setup(const std::string&, const bool &option = true) ;
+  void setup(const std::string&, const bool& option = true) ;
   void assemble();
   void solve(const bool& print = false, std::ostream& out= std::cout);
   void process(const std::string&);
@@ -117,21 +89,15 @@ public:
   const VectorXd& getRHS() const;
   const VectorXd& getSol() const;
 
-  ~parallelSolver() = default;
+  ~parallelSolver2() = default;
 
 protected:
-  void _apply_boundary(const Element<DIM>&,std::unordered_map<unsigned int, double>&, const std::map<unsigned int, const Function<DIM> *>&);
-  void _localStiff(FETools::SpectralFE<DIM>&, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
-  void _localMass(FETools::SpectralFE<DIM>&, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
-  void _localRHS(FETools::SpectralFE<DIM>&, std::unordered_map<unsigned int, double>&);
-
-  // a method to export the solution and mesh on a VTK file
-  void _export( const std::string&) const;
+  void _apply_boundary(std::array<omp_lock_t,NBLOCKS>& rhs_locks);
+  void _computeStiff(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& mat_locks);
+  void _computeMass(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& mat_locks);
+  void _computeRHS(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& rhs_locks);
 
     
 };
 
 #endif
-
-
-

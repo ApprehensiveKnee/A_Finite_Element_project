@@ -34,8 +34,7 @@ namespace FETools
               _r(re),
               _quad_points(),
               _D_ref((re+1) * DIM == 2 ? (re+1) : 1 /* n_q */, (re+1) * DIM == 2 ? (re+1) : 1 /* n_q */),
-              _B_ref(DIM == 2 ? std::array<SparseMatrix<double>, DIM>{SparseMatrix<double>((re+1), (re + 1) * (re + 1)), SparseMatrix<double>((re+1), (re + 1) * (re + 1))}
-                              : std::array<SparseMatrix<double>, DIM>{SparseMatrix<double>((re+1), (re + 1))}), // dof_per_cell = n_q
+              _B_ref(initMatArray(re)), // dof_per_cell = n_q
               _J_invT(DIM, DIM),
               _Dcell(_D_ref),
               _Jcell_invT(_J_invT, _current_elem),
@@ -108,7 +107,7 @@ namespace FETools
 
 
         // a method to update the element currently considered
-        void update_current( const Element<DIM> &geoele )
+        void update_current(const Element<DIM> &geoele)
         {
         
             
@@ -127,7 +126,9 @@ namespace FETools
                 // new element with respect to the previous one, we have to update the quadrature points, the D and the
                 // B matrixes
                 unsigned int nqx = _current_elem.getNQ()[0];
-                unsigned int nqy = _current_elem.getNQ()[1];
+                unsigned int nqy;
+                if constexpr (DIM == 2)
+                    nqy = _current_elem.getNQ()[1];
                 _current_elem = geoele;
                 // update the Jacobian
                 this->_update_J();
@@ -309,7 +310,7 @@ namespace FETools
             else
             {
                 //loop over the x coordinate
-                for(auto i : this->comp_quad_w(0))
+                for(auto i : this->_comp_quad_w(0))
                 {
                     _D_ref.coeffRef(index,index)=(i);
                     index++;
@@ -353,7 +354,6 @@ namespace FETools
             
 
             return;
-
         }
         
         /// a method to update the jacobian of the current element
@@ -373,6 +373,17 @@ namespace FETools
                 
             return;
         };
+
+
+        // a static method to allow for correct initializiaion of array of Eigen::SparseMatrix
+        // given the dimension of the problem (DIM)
+        static std::array<SparseMatrix<double>,DIM> initMatArray(const unsigned int &re)
+        {
+            if constexpr (DIM == 1)
+                return {SparseMatrix<double>((re+1), (re+1))};
+            else
+                return {SparseMatrix<double>((re+1), (re+1)*(re+1)), SparseMatrix<double>((re+1), (re+1)*(re+1))};
+        }
 
 
     private:

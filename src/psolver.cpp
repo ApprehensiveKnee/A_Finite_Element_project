@@ -1,11 +1,11 @@
 #include "psolver.hpp"
 
 
-void parallelSolver::setup(const unsigned short &option, const std::string& file_name)
+void parallelSolver::setup(const std::string& file_name, const bool &option)
 {
     std::cout << "\nSetting up the mesh, initializing the DoF handler and algebraic structure...\n" <<std::endl;
     // As a first step, initialize the mesh, the ID array and the DoFhandler object
-    if(option == 1)
+    if(option == true)
     {
         _mesh.setMesh_csv(file_name,_dof.getDeg()[0]+1, _dof.getDeg()[DIM-1]+1);
         //_mesh.printMesh();
@@ -14,7 +14,7 @@ void parallelSolver::setup(const unsigned short &option, const std::string& file
     }
         
         
-    else if(option == 2)
+    else if(option == false)
     {
         _mesh.genMesh({0,1},{0,1},{10,10},{_dof.getDeg()[0]+1, _dof.getDeg()[DIM-1]+1});
         //_mesh.printMesh();
@@ -37,7 +37,7 @@ void parallelSolver::setup(const unsigned short &option, const std::string& file
 
 void parallelSolver::assemble()
 {
-    // generate threads of parallel threads
+    // Generate threads
     #pragma omp parallel num_threads(4) 
     {
 
@@ -115,7 +115,6 @@ void parallelSolver::assemble()
 
         
 
-
         // Once we are done with all the computation, serially load the values of the global matrix stored inside
         // the local maps inside the global Eigen matrix
 
@@ -139,7 +138,7 @@ void parallelSolver::assemble()
 
                     if(bound) // Check for boundary condition to avoid accessing 0 elements
                     {
-                        // If element is on the boundary, just accesss the diagonal of the matrix
+                        // If element is on the boundary, just access the diagonal of the matrix
                         _system_mat.coeffRef(global_index_x,global_index_x) = mat_entries.at(std::make_pair(global_index_x, global_index_x));
                         
                     }
@@ -155,7 +154,7 @@ void parallelSolver::assemble()
                             if(mat_entries.find(std::make_pair(global_index_x, global_index_y)) != end)
                             {
                                 //std::cout << " Key: " << global_index_x << ", " << global_index_y << std::endl;
-                                _system_mat.coeffRef(global_index_x,global_index_y) = mat_entries.at(std::make_pair(global_index_x, global_index_y));
+                                _system_mat.coeffRef(global_index_x,global_index_y) += mat_entries.at(std::make_pair(global_index_x, global_index_y));
                             
                             
                             }
@@ -212,11 +211,25 @@ void parallelSolver::solve(const bool& print, std::ostream& out)
 
 void parallelSolver::process(const std::string & file_name)
 {
-    //this->_export(file_name);
-    //this->_errorL2(true);
-    //this->_errorH1(true);
+    this->_export(file_name);
     return;
 }
+
+const SparseMatrix<double>& parallelSolver::getMat() const
+{
+    return _system_mat;
+}
+
+const VectorXd& parallelSolver::getRHS() const
+{
+    return _rhs;
+}
+
+const VectorXd& parallelSolver::getSol() const
+{
+    return _sol;
+}
+
 
 
 
@@ -370,8 +383,8 @@ void parallelSolver::_apply_boundary(const Element<DIM>& rect, std::unordered_ma
         //finally set to 0 the rows corresponging to those nodes on the boundary, apart from elements
         //that represent the solution on that specific node....
 
-        
-
+        // Differetly form the serial case, this is implicitly done when assembling the global matrix, considering whether
+        // a certain dof is on the border or not
     }
      
     
@@ -379,127 +392,69 @@ void parallelSolver::_apply_boundary(const Element<DIM>& rect, std::unordered_ma
 };
 
 
-
-// double parallelSolver::_errorL2(const bool& print, std::ostream& out) const
-// {
-//     VectorXd error(_sol.rows());
-//     double sum(0);
-
-//     // loop over all the elements
-//     for(const Element<DIM>& e: _mesh.getElems())
-//     {
-//         //loop over all the quadrature points of the element
-//         for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
-//         {
-//             for (unsigned int i = 0; i < _fe.getNQ()[0]; i++)
-//             {
-//                 // determine the index of local quadrature point currently considered
-//                 unsigned int q = (j)*_fe.getNQ()[0]+i;
-//                 // and the global index of the node currently considered
-//                 unsigned int gindex = _dof.getMap()[q][e.getId()-1]-1;
-
-//                 // compute the local weight
-//                 double weight = (_fe.getQuad()[0].getW()[i] *
-//                                  (1. / _fe.getJ().coeff(0, 0)) *
-//                                  _fe.getQuad()[DIM - 1].getW()[j] *
-//                                  (1. / _fe.getJ().coeff(1, 1)));
-
-//                 sum += (_e.value(_dof.getPoints()[gindex]) - _sol.coeff(gindex))*(_e.value(_dof.getPoints()[gindex]) - _sol.coeff(gindex))* weight;
-//             }
-            
-            
-//         }
-
-//     }
-
-     
-//     if(print)
-//     {
-//         out << "Norm L2 of error computed: " << std::scientific << std::sqrt(sum) << std::endl;
-//     }
-        
-//     return std::sqrt(sum);
-// }
-
-
-
-// double parallelSolver::_errorH1(const bool& print,std::ostream& out)
-// {
-//     // first define the temp variable to store the sum of 
-
-//     double sum(0);
+void parallelSolver::_export(const std::string& file_name) const
+{
+    // Define the points of the mesh
+    vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
+    //Loop over the points of the global
+    for(const Point<DIM>& node: _dof.getPoints())
+    {
+        points->InsertNextPoint(node.getX(),node.getY(),0.);
+    }
     
 
-//    //  Loop over each element 
-//    for(const Element<DIM>& elem : _mesh.getElems())
-//    {
-//         // For each element get the evaluation of the exact solution at the quadrature nodes
-//         // and compute the numerical derivative using the derivative matrix of the element computed by the fe object
-//         _fe.update_current(elem);
-//         //  An eigen matrix to store the values of the numerical solution on the local quadrature nodes
-//         // necessary to then compute the evaluation of the derivatives
-//         MatrixXd un(_fe.getNQ()[0],_fe.getNQ()[DIM-1]);
-        
-//         // Loop over the quadrature points of the element
-//         for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
-//         {
-//             for (unsigned int i = 0; i < _fe.getNQ()[0]; i++)
-//             {
-//                 // determine the index of local quadrature point currently considered
-//                 unsigned int q = (j)*_fe.getNQ()[0]+i;
-//                 // and the global index of the node currently considered
-//                 unsigned int gindex = _dof.getMap()[q][elem.getId()-1]-1;
-                
-//                 // get the exact solution on the quadrature nodes and place its values in a matrix
-//                 un(i,j) = _sol.coeff(gindex);
-                
-//             }
-//         }
-
-//         // std::cout << "Un"<<std::endl;
-//         // std::cout <<un <<"\n"<< std::endl;
-
-//         //Compute the numerical derivative
-//         MatrixXd ux = (_fe.getJ().coeff(0, 0))*(_fe.getB()[0]* un);
-//         MatrixXd uy = (_fe.getJ().coeff(1, 1))*(_fe.getB()[0]* un.transpose()).transpose();
-
-//         // std::cout << "Ux"<<std::endl;
-//         // std::cout <<ux <<"\n"<< std::endl;
-//         // std::cout << "Uy"<<std::endl;
-//         // std::cout <<uy <<"\n"<< std::endl;
-
-//         // Loop over the quadrature points of the element to sum all the differences over the quadrature points
-//         for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
-//         {
-//             for (unsigned int i = 0; i < _fe.getNQ()[0]; i++)
-//             {
-//                 // determine the index of local quadrature point currently considered
-//                 unsigned int q = (j)*_fe.getNQ()[0]+i;
-//                 // and the global index of the node currently considered
-//                 unsigned int gindex = _dof.getMap()[q][elem.getId()-1]-1;
-                
-//                 // sum all the contributions for the element currenlty considered
-//                 sum += ((un.coeff(i, j) - _e.value(_fe.quadrature_point(q, _dof))) *
-//                             (un.coeff(i, j) - _e.value(_fe.quadrature_point(q, _dof))) + // (U - U_n)^2
-//                         (ux.coeff(i, j) - _e.grad(_fe.quadrature_point(q, _dof))[0]) *
-//                             (ux.coeff(i, j) - _e.grad(_fe.quadrature_point(q, _dof))[0]) + // (dUx -dU_nx)^2
-//                         (uy.coeff(i, j) - _e.grad(_fe.quadrature_point(q, _dof))[1]) *
-//                             (uy.coeff(i, j) - _e.grad(_fe.quadrature_point(q, _dof))[1])) *
-//                        (_fe.getQuad()[0].getW()[i] *
-//                         (1. / _fe.getJ().coeff(0, 0)) *
-//                         _fe.getQuad()[DIM - 1].getW()[j] *
-//                         (1. / _fe.getJ().coeff(1, 1))); // (dUy -dU_ny)^2
-//             }
-//         }
-//    }
-
-//    if(print)
-//         out << "Norm H1 of error computed: " << std::scientific <<std::sqrt(sum) << std::endl;
-
-//     return  std::sqrt(sum);
+    // Create the mesh (connectivity of the points)
+    vtkSmartPointer<vtkPolyData> mesh = vtkSmartPointer<vtkPolyData>::New();
+    mesh->SetPoints(points);
+    vtkSmartPointer<vtkCellArray> cells = vtkSmartPointer<vtkCellArray>::New();
     
 
-// }
+    // Now store the orignal mesh with the connectivity information
+    for(const Element<DIM>& elem : _mesh.getElems())
+    {
+
+        vtkSmartPointer<vtkQuad> cell = vtkSmartPointer<vtkQuad>::New();
+        cell->GetPointIds()->SetId(0,_dof.getMap()[0][elem.getId()-1]-1); // bottom-left corner
+        cell->GetPointIds()->SetId(1,_dof.getMap()[_dof.getDeg()[0]][elem.getId()-1]-1);    // bottom-right
+        cell->GetPointIds()->SetId(2,_dof.getMap()[_dof.dof_per_cell()-1][elem.getId()-1]-1); // top-right
+        cell->GetPointIds()->SetId(3,_dof.getMap()[_dof.dof_per_cell()-_dof.getDeg()[DIM-1]-1][elem.getId()-1]-1); // top_left
+        cells->InsertNextCell(cell);
+        
+
+    }
+        
+    mesh->SetPolys(cells);
+
+    // Write the mesh to a VTK file
+    vtkSmartPointer<vtkXMLPolyDataWriter> writer = 
+    vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+    writer->SetFileName(("./solution/solution"+file_name+".vtp").c_str());
+    writer->SetInputData(mesh);
+    writer->Write();
+
+
+    // Add the solution values as point data to the mesh
+    vtkSmartPointer<vtkDoubleArray> solutionArray = 
+    vtkSmartPointer<vtkDoubleArray>::New();
+    solutionArray->SetName("Solution");
+    solutionArray->SetNumberOfComponents(1);
+    for (int i = 0; i < _dof.getMap()[_dof.dof_per_cell()-1][_mesh.get_nElems()-1]; i++)
+    {
+    solutionArray->InsertNextValue(_sol.coeff(i));
+    }
+    mesh->GetPointData()->AddArray(solutionArray);
+
+    
+    // Write the solution to the VTK file
+    writer->SetFileName(("./solution/solution"+file_name+".vtp").c_str());
+    writer->SetInputData(mesh);
+    writer->Write();
+
+
+    return;
+}
+
+
 
 
 

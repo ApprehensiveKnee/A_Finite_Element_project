@@ -38,7 +38,7 @@ xa=0;xb=1; % Omega=(xa,xb) x (ya,yb)
 ya=0;yb=1;
 cb='dddd'; % For boundary conditions cb(i)=;d’ ---> Dirichlet on side i
 % cb(i)=’n’ ----> Neumann on side i 
-nex=10;ney=10; nx=5; ny=5;
+nex=5;ney=5; nx=1; ny=1;
 param=zeros(20,1); % "help lap_2d" for a complete description of param
 param(1)=1;
 param(2)=2;
@@ -52,8 +52,8 @@ param(3)=1;
 param(4)=1; % computes errors
 param(5)=1; % 0 exact norms, 1= discrete norms
 param(6)=nx*2;
-param(7)=1; %
-param(8)=2; %
+param(7)=0; % 0 = absolute errors, 1= relative errors
+param(8)=2; % 0 no plot, 1 mesh, 2 surf, 3 contuur 
 param(9)=(nx+1); % nodes used to plot numerical solution 
 gammax=[]; gammay=[]; % if SEM decomposition is not uniform:
 % nq for LG quadrature formulas
@@ -69,12 +69,84 @@ A = full(A);
 
 %write the matrix to a file to compare with c++ matrix
 
-filename = 'A.csv';
+filename = 'A.csv'; 
 csvwrite(filename, A);
 filename = 'F.csv';
 csvwrite(filename, F);
 
 %%
 
- x = [1,2,4,7];
- x = reshape(x,1,1)
+clear all;
+close all;
+clc;
+
+
+% LAP_1D   SEM appx of the 1D b.v.p. -nu u''+gam u=f
+%
+%     -nu u''+gam u=f      xa < x < xb
+%      + Dirichlet or Neumann bc
+%    
+% by Galerkin Numerical Integration with LGL quadrature formulas.
+%
+%  [xy,un,err_inf,err_l2,err_h1]=lap_1d(xa,xb,nu,gam,uex,uexx,ff,cb,ne,nx);
+%
+% Input: xa, xb = extrema of computational domain Omega=(xa,xb)
+%      nu   = viscosity (constant>0)
+%      gam   = coefficient of zeroth order term (constant>=0)
+%      uex  = exact solution (uex=@(x)[uex(x)], with .*, .^, ./)
+%      uexx = first derivative of exact solution (uexx=@(x)[uexx(x)], 
+%             with .*, .^, ./)
+%      ff  = r.h.s. solution (ff=@(x)[ff(x)], with .*, .^, ./)
+%      cb = string containing boundary conditions, for example
+%           cb='dn' imposes Dirichlet in xa and Neumann in xb 
+%      ne = number of elements (equally spaced)
+%      nx = polynomial degree in each element (the same in each element)
+%             to be set only if p=4, otherwise, nx=p;
+%      param(1) = 1: compute errors (L^inf-norm, L2-norm, H1-norm)
+%                      on the exact solution
+%                 2: no  errors are computed
+%      param(2) = 0: LG quadrature formulas with high precision degree are
+%                      used to compute norms (exact norms)
+%                 1: LGL quadrature formulas with npdx,npdy nodes are
+%                      used to compute norms (discrete norms)
+%                   (used only if param(1) == 1)
+%      param(3) = number of nodes for high degree quadrature formula,
+%                   (used only if param(2) == 0 & param(1) == 1)
+%      param(4) = 0: absolute errors are computed
+%                 1: relative errors are computed
+%                   (used only if param(1) == 1)
+%      param(5) = 0: not plot the solution
+%                 1: plot the solution 
+%      param(6) = number of nodes in each element for plotting interpolated solution
+%                   (used only if param(5) ==1)
+%
+% Output: xy = 1D mesh
+%         un = numerical solution 
+%         err_inf = ||u_ex-u_N|| with respect to discrete maximum-norm
+%         err_h1 = ||u_ex-u_N|| with respect to discrete H1-norm
+%         err_l2 = ||u_ex-u_N|| with respect to discrete L2-norm
+
+
+uex=@(x)[sin(2 * pi * x)]; % exact solution = boundary data 
+uexx=@(x)[2 * pi *cos(2*pi*x)]; % du/dx
+ff=@(x)[4 * pi * pi * sin(2 * pi * x)]; % r.h.s 
+g=@(x,y)[0]; % Dirichlet boundary data 
+h=@(x,y)[0]; % Neumann boundary data 
+gam=0; % coefficient of the term of order zero.
+nu = 1; % coefficient of the second order derivative term.
+xa=0;xb=1; % Omega=(xa,xb) 
+cb='dd'; % For boundary conditions cb(i)=;d’ ---> Dirichlet on side i
+% cb(i)=’n’ ----> Neumann on side i 
+ne=5;
+nx=2;
+
+param=zeros(6,1); % "help lap_2d" for a complete description of param
+param(1) = 1;
+param(2) = 1;
+param(4) = 0;
+param(5) = 1;
+param(6) = (nx + 1);
+
+[xy,un,err_inf,err_l2,err_h1]=lap_1d(xa,xb,nu,gam,uex,uexx,ff,cb,ne,nx, param);
+
+

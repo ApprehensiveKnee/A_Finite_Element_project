@@ -26,6 +26,7 @@
 #include <vtkSmartPointer.h>
 #include <vtkPoints.h>
 #include <vtkQuad.h>
+#include <vtkLine.h>
 #include <vtkCellArray.h>
 #include <vtkPointData.h>
 #include <vtkPolyData.h>
@@ -41,7 +42,7 @@ using namespace FETools;
 class serialSolver
 {
 protected:
-    static constexpr unsigned int DIM = 2;
+    static constexpr unsigned short DIM = 1;
     //first of all, the mesh that will be saved as a member of solver,
     Mesh<DIM> _mesh;
     // a fe class solver object, to deal with the single elements of the mesh member
@@ -71,8 +72,9 @@ public:
     //default contructor
     serialSolver() = default;
 
-    serialSolver(const unsigned short &dg)//<---the degree of the finite element space
-        :_mesh(),
+    serialSolver(const unsigned short& dg)//<---the degree of the finite element space
+        :
+        _mesh(),
         _fe(dg),
         _dof(dg,dg),
         _mu(),
@@ -87,13 +89,13 @@ public:
 
     //definition of a handle-member/interface with the mesh member variable to
     //decide wether to read the mesh or generate a basic one within the program
-    void setup(const unsigned short &option, const std::string& = 0);
+    void setup(const std::string&, const bool &option = true);
     //a method to assemble the sistem
     void assemble();
     // a method to solve the sistem
     void solve(const bool& print = false, std::ostream& out= std::cout);
     // a method to process the output data and visualize the output
-    void process(const std::string&);
+    void process(const std::string&, const bool& mesh_option= false);
     // a method to define the convergence test
     void  convergence();
 
@@ -109,9 +111,7 @@ protected:
     // the methods compute the local matrix for the current analyzed element
     // and compress it onto the system matrix
     // (plus a method to apply Dirichelet boundary conditions)
-    void _LocStiff();
-    void _LocMass();
-    void _LocRHS();
+
     void _apply_boundary();
     //some methods to compute the global system
     void _computeStiff();
@@ -119,8 +119,8 @@ protected:
     void _computeRHS();
     
 
-    // // a method to export the solution and mesh on a VTK file
-    void _export( const std::string&) const;
+    // a method to export the solution and mesh on a VTK file
+    void _export(const std::string&, const bool& mesh_option = false) const;
 
     // a method to compute the error between the computed solution and the exact solution;
     // please note that to implement such method the exact solution must be known

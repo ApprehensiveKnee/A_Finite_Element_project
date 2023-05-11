@@ -21,7 +21,7 @@
 // since Bref_cell,J_cell and D_cell are made up of copies of the same values repeated in certain positions,
 // this lets us compute the matrix products in a more efficent way simply by accessing the Jacobian of the element
 // D_ref, and Bx_ref/ By_ref.
-// The following classes are views(proxies) to implement matrix multiplications between 
+// The following classes are views (PROXIES) to implement matrix multiplications between 
 // the local matrixes without explicitily defining them.
 
 //PLEASE NOTE: the defined custom classes are not compatible for 
@@ -367,6 +367,8 @@ namespace ExtendMat
                 {
                     if(i == j /*on the diagonal*/)
                         return _A.coeff(0,0);
+                    else
+                        return 0.;
                 }
 
             }
@@ -407,6 +409,8 @@ namespace ExtendMat
                 {
                     if(i == j /*on the diagonal*/)
                         return _A.coeff(0,0);
+                    else
+                        return 0.;
                 }
 
             }

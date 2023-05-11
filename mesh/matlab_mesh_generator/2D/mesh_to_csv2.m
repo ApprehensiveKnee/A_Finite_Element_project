@@ -93,7 +93,7 @@ noe=nov(npdx*npdy,ne);
 numbers = [noe, nex, ney];
 T = array2table(numbers);
 T.Properties.VariableNames(1:3) = {'Number of total nodes','Number of total elements x axis', 'Number of total elements y axis'};
-writetable(T,strcat(strcat('../meshes/numbers_',h),'.csv'));
+writetable(T,strcat(strcat('../meshes/2D_meshes/numbers_',h),'.csv'));
 
 
 nodes = zeros(noe,4);
@@ -103,7 +103,7 @@ nodes(:,4)=ifro;
 
 T = array2table(nodes);
 T.Properties.VariableNames(1:4) = {'node_id','node_coordinate_x', 'node_coordinate_y', 'boundary_flag'};
-writetable(T,strcat(strcat('../meshes/nodes_coordinates_',h),'.csv'));
+writetable(T,strcat(strcat('../meshes/2D_meshes/nodes_coordinates_',h),'.csv'));
 
 %write elements_vertexes.csv (each vertex inside each element)
 %for this purpose the original mesh_1d function as been sligthly modified
@@ -116,7 +116,7 @@ elems(:,6) = ebon;
 
 T = array2table(elems);
 T.Properties.VariableNames(1:6) = {'ElementID','GlobalId_1', 'GlobalId_2', 'GlobalId_3', 'GlobalId_4', 'boundary_flag'};
-writetable(T,strcat(strcat('../meshes/elements_vertexes_',h),'.csv'));
+writetable(T,strcat(strcat('../meshes/2D_meshes/elements_vertexes_',h),'.csv'));
 
 
 

@@ -18,8 +18,9 @@ clear all;
 close all;
 clc;
 xa = 0;
-xb = 1000;
-ne = 100; 
+xb = 1;
+ne = 80; 
+h =num2str(1/ne, '%.4f');
 npdx = 2; %the number of nodes per element along a dimension has to be 2 (the two vertices)
 % to get nodes_coordinates file that account only for the coordinates of
 % the vertices, and not for all the nodes of the mesh (the internal ones too)
@@ -43,7 +44,7 @@ noe=nov(npdx,ne);
 numbers = [noe, ne];
 T = array2table(numbers);
 T.Properties.VariableNames(1:2) = {'Number of total nodes','Number of total elements'};
-writetable(T,'numbers.csv');
+writetable(T,strcat(strcat('../meshes/1D_meshes/numbers_',h),'.csv'));
 
 
 
@@ -53,7 +54,7 @@ nodes (:,2) = xy;
 
 T = array2table(nodes);
 T.Properties.VariableNames(1:2) = {'node_id','node_coordinate_'};
-writetable(T,'nodes_coordinates.csv')
+writetable(T,strcat(strcat('../meshes/1D_meshes/nodes_coordinates_',h),'.csv'));
 
 
 
@@ -67,7 +68,7 @@ elems(:, 2:3) = nov';
 
 T = array2table(elems);
 T.Properties.VariableNames(1:3) = {'ElementID','GlobalId_1', 'GlobalId_2'};
-writetable(T,'elements_vertexes.csv');
+writetable(T,strcat(strcat('../meshes/1D_meshes/elements_vertexes_',h),'.csv'));
 
 
 
