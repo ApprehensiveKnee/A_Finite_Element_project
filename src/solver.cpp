@@ -14,6 +14,21 @@ void serialSolver::setup(const std::string& file_name, const bool &option)
             //_mesh.printMesh();
             _dof.genPoints(_mesh);
             //_dof.printPoints();
+
+            #ifdef COLORING
+
+            for(const Element<DIM>& elem : _mesh.getElems())
+            {
+                std::cout << "Element " << elem.getId() << std::endl;
+                std::cout << "{" << std::endl;
+                for(const unsigned int& point_index : elem.getPoints())
+                {
+                    std::cout << "Point " << point_index << std::endl;
+                }
+                std::cout << "} \n" << std::endl;
+            }
+            
+            #endif
         }
 
 
@@ -24,6 +39,21 @@ void serialSolver::setup(const std::string& file_name, const bool &option)
             //_mesh.printMesh();
             _dof.genPoints(_mesh);
             //_dof.printPoints();
+
+            #ifdef COLORING
+
+            for(const Element<DIM>& elem : _mesh.getElems())
+            {
+                std::cout << "Element " << elem.getId() << std::endl;
+                std::cout << "{" << std::endl;
+                for(const unsigned int& point_index : elem.getPoints())
+                {
+                    std::cout << "Point " << point_index << std::endl;
+                }
+                std::cout << "} \n" << std::endl;
+            }
+
+            #endif
         }
     }
         

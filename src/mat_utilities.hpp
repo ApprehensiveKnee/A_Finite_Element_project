@@ -45,7 +45,7 @@ namespace ExtendMat
 
     //==========================================================================================================
     //  Class for Bref_cell extension form Bx_ref and By_ref
-    template<typename Derived, unsigned int DIM>
+    template<typename Derived, unsigned short DIM>
     class ExtendedB: public Eigen::EigenBase<Derived>
     {
     public:
@@ -216,7 +216,7 @@ namespace ExtendMat
     //  Class for D_cell extension form D_ref matrix
     // The traspose of this matrix would be the matrix itself since it is diagonal
 
-    template<typename Derived, unsigned int DIM>
+    template<typename Derived, unsigned short DIM>
     class ExtendedD: public Eigen::EigenBase<Derived>
     {
     public:
@@ -298,7 +298,7 @@ namespace ExtendMat
     //==========================================================================================================
 
     //  Class for J_cell extention from Jacobian of the element
-    template<typename Derived, unsigned int DIM>
+    template<typename Derived, unsigned short DIM>
     class ExtendedJ: public Eigen::EigenBase<Derived>
     {
     public:
@@ -613,7 +613,7 @@ namespace ExtendMat
 
     // ========================= OVERLOADING OF OPERATOR * USING EIGEN CLASSES ===============================
 
-    template<EigenMatrix Derived, unsigned int DIM>
+    template<EigenMatrix Derived, unsigned short DIM>
     const SparseMatrix<double> operator*(const ExtendMat::ExtendedD<Derived, DIM>& D, const double& coeff)
     {
         SparseMatrix<double> result(D.rows(), D.cols());
@@ -624,7 +624,7 @@ namespace ExtendMat
         return result;
     }
 
-    template<EigenMatrix Derived1, EigenMatrix Derived2, unsigned int DIM>
+    template<EigenMatrix Derived1, EigenMatrix Derived2, unsigned short DIM>
     const MatrixXd operator*(const ExtendMat::ExtendedJ<Derived1,DIM> &J, const ExtendMat::ExtendedB<Derived2,DIM> &B)
     {
         MatrixXd result = MatrixXd::Zero(J.rows(), B.cols());
@@ -657,14 +657,14 @@ namespace ExtendMat
     // Overloading of operator * to allow for product between "virtual matrix classes" ExtendedB and ExtendedJ
     /*
 
-    template<EigenMatrix Derived1, EigenMatrix Derived2, unsigned int DIM>
+    template<EigenMatrix Derived1, EigenMatrix Derived2, unsigned short DIM>
     GeneralProduct<ExtendedB<Derived1,DIM>, ExtendedJ<Derived2, DIM>> operator *( const ExtendedB<Derived1,DIM>& B,const ExtendedJ<Derived2, DIM>& J)
     {
         return GeneralProduct<ExtendedB<Derived1,DIM>, ExtendedJ<Derived2, DIM>>(B, J);
     }
 
     
-    template<EigenMatrix Derived1,EigenMatrix Derived2, unsigned int DIM>
+    template<EigenMatrix Derived1,EigenMatrix Derived2, unsigned short DIM>
     GeneralProduct<ExtendedJ<Derived1, DIM>, ExtendedB<Derived2,DIM>> operator *(const ExtendedJ<Derived1, DIM>& J,const ExtendedB<Derived2,DIM>& B)
     {
         return GeneralProduct<ExtendedJ<Derived1,DIM>, ExtendedB<Derived2, DIM>>(J, B);
@@ -676,14 +676,14 @@ namespace ExtendMat
     // Operator * overloading to support multiplication with custom expression class (coeff * D_ref)
 
 
-    template<EigenMatrix Derived, unsigned int DIM>
+    template<EigenMatrix Derived, unsigned short DIM>
     GeneralProduct<double, ExtendedD<Derived,DIM>> operator*(const ExtendedD<Derived,DIM>& D, const double& coeff)
     {
         return GeneralProduct<double, ExtendedD<Derived,DIM>>(coeff,D);
     }
 
     // Operator * overloading to support multiplication with custom expression class (D_ref*coeff)
-    template<EigenMatrix Derived, unsigned int DIM>
+    template<EigenMatrix Derived, unsigned short DIM>
     GeneralProduct<double, ExtendedD<Derived,DIM>> operator*(const double& coeff, const ExtendedD<Derived,DIM>& D)
     {
         return GeneralProduct<double, ExtendedD<Derived,DIM>>(coeff, D);

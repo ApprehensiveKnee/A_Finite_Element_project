@@ -22,6 +22,8 @@
 #include <Eigen/SparseCore>
 #include <unsupported/Eigen/SparseExtra>
 
+#define COLORING
+
 // Define some defualt constant quantities...
 inline constexpr double tol= 1.e-16;
 inline constexpr unsigned r = 3;
@@ -32,7 +34,7 @@ using namespace Eigen;
 
 
 //a class to store the coordinates of the relevant points 
-template<unsigned int DIM>
+template<unsigned short DIM>
 class Point
 {
 protected:
@@ -156,7 +158,7 @@ public:
 };
 
 //========================================================================================================
-template<unsigned int DIM>
+template<unsigned short DIM>
 class Node : public Point<DIM>
 {
 private:
@@ -338,7 +340,7 @@ concept IsTuple =  std::is_same_v<T, std::tuple<double,double>>;
 
 //========================================================================================================
 
-template <unsigned int DIM>
+template <unsigned short DIM>
 class Element
 {
 private:
@@ -346,6 +348,12 @@ private:
     unsigned int _element_id;
     // vector of Node elements corresponding to vert indexes
     std::vector<Node<DIM>> _nodes;
+
+    #ifdef COLORING
+    // vector for the internal points of the element, used for the coloring algorithm and computed in the genPoints() method
+    // inside the DoF Handler class
+    std::vector<unsigned int> _points;
+    #endif
 
     // the following is a viual representation of the ordering of vertices adopted for the construction
     // of the rectanglular element (2D case) to be used for the SEM mesh
@@ -394,6 +402,22 @@ public:
     {
         return _nodes;
     };
+
+    #ifdef COLORING
+    // Getter:gets the global index of the internal points of the elemet
+    const std::vector<unsigned int>& getPoints() const
+    {
+        return _points;
+    };
+
+    // Setter: allows to modify the points of the element
+    std::vector<unsigned int>& modifyPoints()
+    {
+        return _points;
+    };
+    
+    #endif
+
     // Getter: gets the boundary flag, to implement a tree search of the boundary nodes
     const unsigned short& getBound() const
     {

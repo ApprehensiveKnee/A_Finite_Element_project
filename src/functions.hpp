@@ -8,7 +8,7 @@
 
 // Here some classes that implement mathematical functions
 //Pure class for scalar function taking values in 2D domains
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class Function
     {
     public:
@@ -24,7 +24,7 @@
 
     //then some general functions derived from the function base class
     //we hereby consider just scalar functions
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class DiffusionCoefficient : public Function<DIM>
     {
     public:
@@ -42,7 +42,7 @@
     };
 
     // Reaction coefficient.
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class ReactionCoefficient : public Function<DIM>
     {
     public:
@@ -62,7 +62,7 @@
     };
 
     // Forcing term.
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class ForcingTerm : public Function<DIM>
     {
     public:
@@ -91,7 +91,7 @@
     };
 
     // The exact solution (must be known)
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class ExactSolution : public Function<DIM>
     {
     public:
@@ -140,7 +140,7 @@
 
     // Some constant functions to use, for instance, with Dirichelet b.c
 
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class functionZero : public Function<DIM>
     {
     public:
@@ -156,7 +156,7 @@
         }
     };
 
-    template<unsigned int DIM>
+    template<unsigned short DIM>
     class functionOne : public Function<DIM>
     {
     public:

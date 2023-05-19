@@ -42,7 +42,7 @@ using namespace FETools;
 class serialSolver
 {
 protected:
-    static constexpr unsigned short DIM = 1;
+    static constexpr unsigned short DIM = 2;
     //first of all, the mesh that will be saved as a member of solver,
     Mesh<DIM> _mesh;
     // a fe class solver object, to deal with the single elements of the mesh member

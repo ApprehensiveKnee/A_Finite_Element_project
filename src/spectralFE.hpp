@@ -21,7 +21,7 @@ namespace FETools
 {
 
 
-    template <unsigned int DIM>
+    template <unsigned short DIM>
     class SpectralFE
     {
     public:

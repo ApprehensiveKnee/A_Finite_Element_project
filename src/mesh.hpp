@@ -5,6 +5,8 @@
 #ifndef MESH
 #define MESH
 
+#define COLORING
+
 
 #include "elements.hpp"
 #include "quadrature.hpp"
@@ -18,7 +20,7 @@
 //          FORWARD DECLARATION OF CLASS MESH
 //========================================================
 // Mesh class definition
-template<unsigned int DIM>
+template<unsigned short DIM>
 class Mesh
 {
 private:
@@ -47,6 +49,12 @@ public:
     // Getter for _elems vector
     const std::vector<Element<DIM>>& getElems() const;
     // Default printer
+
+    #ifdef COLORING
+    // Modifier for the _elems vector
+    std::vector<Element<DIM>>& modifyElems();
+    #endif
+    
     void printMesh(std::ostream& = std::cout ) const;
     // Setter for the number of elements and nodes for a txt file
     void setNum(const std::string&);
@@ -75,7 +83,7 @@ public:
 
 
 //declaration of class DofHandler
-template<unsigned int DIM>
+template<unsigned short DIM>
 class DoFHandler
 {
 private:
@@ -240,7 +248,11 @@ public:
 
     // A method to generate the coordiates of all the points relevant to compute the solution.
     //this computed information is stored inside a vector of points
+    #ifndef COLORING
     const std::vector<Point<DIM>>& genPoints(const Mesh<DIM>& mesh)
+    #else
+    const std::vector<Point<DIM>>& genPoints(Mesh<DIM>& mesh)
+    #endif
     {
         
         // Reset the global nodes of the mesh...
@@ -265,17 +277,49 @@ public:
             {
                 double x = mesh.getElems()[0].template directMap<double>(qrx.getN()[q]);
                 _gnodes.emplace_back(x,0,0);
+
+                #ifdef COLORING
+                    // Collect the index of the interal points for the element (comprehensive of its nodes)
+                    // and store them in the vector for the element
+                    mesh.modifyElems()[0].modifyPoints().emplace_back(q+1);
+                #endif
             }
+
+
 
             //Then loop over all the other elements, filling starting from the second coordinate
             //(The first coordinate of the internal point of an element is given as the last coordinate for the previous element)
+            #ifndef COLORING
             for(auto elem = mesh.getElems().begin()+1; elem < mesh.getElems().end(); ++elem)
+            #else
+            unsigned int i = qrx.getN().size();
+            for(auto elem = mesh.modifyElems().begin()+1; elem < mesh.modifyElems().end(); ++elem)
+            #endif
             {
+
+                #ifdef COLORING
+                // Add the index of the first point of the element to the vector of points for the current element
+                elem->modifyPoints().emplace_back(i);
+                i++;
+                #endif
+
                 for(unsigned int q = 1; q < qrx.getN().size(); ++q)
                 {   
                     double x = elem->template directMap<double>(qrx.getN()[q]);
                     _gnodes.emplace_back(Point<DIM>(x,0,0));
+
+                    #ifdef COLORING
+                    // Collect the index of the interal points for the element (comprehensive of its nodes)
+                    // and store them in the vector for the element
+                    elem->modifyPoints().emplace_back(i);
+                    i++;
+                    #endif
                 }
+
+                #ifdef COLORING
+                // Fix the index i for the next iteration
+                i--;
+                #endif
             }
             //Finally update the boundary condition for the first and last element
             _gnodes[0].setBound(1);
@@ -320,7 +364,11 @@ public:
             //Node v4 =getElems()[nEy-1].getNodes[2]; //v4
             
             // Loop over all the elements of the mesh...
+            #ifndef COLORING
             for(const Element<DIM>& elem: mesh.getElems())
+            #else
+            for(Element<DIM>& elem: mesh.modifyElems())
+            #endif
             {
                 //... and compute the coordinates of the internal nodes of the elements using mapping operator for each point in the coordiantes vector
 
@@ -360,6 +408,14 @@ public:
                         //Finally update the vector representing the list of nodes in the global mesh
 
                         _gnodes.at((index-1)) = Point<DIM>(x,y,b);
+
+                        #ifdef COLORING
+
+                        // Collect the index of the interal points for the element (comprehensive of its nodes)
+                        // and store them in the vector for the element
+                        elem.modifyPoints().emplace_back(index);
+
+                        #endif
 
                     }
                     
@@ -408,31 +464,39 @@ public:
 
 
 // ============== MESH CLASS METHODS DEFINITIONS ============= 
-template<unsigned int DIM>  
+template<unsigned short DIM>  
 const unsigned int& Mesh<DIM>::get_nNodes() const{return _nNodes;};
 
-template<unsigned int DIM> 
+template<unsigned short DIM> 
 unsigned int Mesh<DIM>::get_nElems() const{unsigned int sum = _nElems[0]; for(unsigned int i= 1; i < DIM; i++)sum*=_nElems[i] ; return sum;};
 
-template<unsigned int DIM> 
+template<unsigned short DIM> 
 const unsigned int& Mesh<DIM>::get_nEx() const{return _nElems[0];};
 
-template<unsigned int DIM>  
+template<unsigned short DIM>  
 const unsigned int& Mesh<DIM>::get_nEy() const{return _nElems[DIM-1];};
 
-template<unsigned int DIM> 
+template<unsigned short DIM> 
 const std::vector<Node<DIM>>& Mesh<DIM>::getNodes() const
 {
     return _nodes;
 };
 
-template<unsigned int DIM> 
+template<unsigned short DIM> 
 const std::vector<Element<DIM>>& Mesh<DIM>::getElems() const
 {
     return _elems;
 };
 
-template<unsigned int DIM> 
+#ifdef COLORING
+template<unsigned short DIM>
+std::vector<Element<DIM>>& Mesh<DIM>::modifyElems()
+{
+    return _elems;
+}
+#endif
+
+template<unsigned short DIM> 
 void Mesh<DIM>::printMesh(std::ostream& out) const
 {
     out <<"_____________________________________"<< std::endl;
@@ -454,7 +518,7 @@ void Mesh<DIM>::printMesh(std::ostream& out) const
 
 };
 
-template<unsigned int DIM> 
+template<unsigned short DIM> 
 void Mesh<DIM>::setNum(const std::string& file_name)
 {
     //open a text file and read the parameters form it
@@ -511,7 +575,7 @@ void Mesh<DIM>::setNum(const std::string& file_name)
     
 };
 
-template<unsigned int DIM> 
+template<unsigned short DIM> 
 void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx , const unsigned int& nqy)
 {
     // Reset the members of the mesh
@@ -698,7 +762,7 @@ void Mesh<DIM>::setMesh_csv(const std::string& file_name,const unsigned int& nqx
     
 };
 
-template <unsigned int DIM>
+template <unsigned short DIM>
 void Mesh<DIM>::genMesh(const std::array<double, 2> &x,
                         const unsigned int& ne,
                         const unsigned int& nq)
@@ -737,7 +801,7 @@ void Mesh<DIM>::genMesh(const std::array<double, 2> &x,
 }
     
 
-template <unsigned int DIM>
+template <unsigned short DIM>
 void Mesh<DIM>::genMesh(const std::array<double, 2> &x,
                         const std::array<double, 2> &y,
                         const std::array<unsigned int, 2> &ne,

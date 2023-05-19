@@ -1,3 +1,8 @@
+// Preprocessor macro to check for out of bounds indexing
+#define EIGEN_RUNTIME_NO_MALLOC
+// Macro for the coloring algorithm
+
+
 #include <iostream>
 #include "elements.hpp"
 #include "mesh.hpp"
@@ -8,9 +13,6 @@
 #include "solver.hpp"
 #include "psolver.hpp"
 #include "psolver2.hpp"
-
-// Preprocessor macro to check for out of bounds indexing
-#define EIGEN_RUNTIME_NO_MALLOC
 
 
 using namespace FETools;
@@ -23,7 +25,7 @@ int main(int /*argc*/, char * /*argv*/[]){
 
     // Define the degree of the FE space to solve the problem
 
-    constexpr unsigned int r = 4;
+    constexpr unsigned int r = 2;
 
     // And call the solver for the considered problem
 
