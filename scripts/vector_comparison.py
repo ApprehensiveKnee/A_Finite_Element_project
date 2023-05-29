@@ -37,4 +37,4 @@ def check_csv_vectors_equal(file1, file2, rtol=1e-05, atol=1e-08):
         return False
 
 # Example usage
-check_csv_vectors_equal("../build/system_rhs.csv","../mesh/matlab_mesh_generator/Playground/F.csv")
+check_csv_vectors_equal("../build/system_rhs_serial.csv","../build/system_rhs_parallel.csv")

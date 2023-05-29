@@ -20,4 +20,4 @@ def check_csv_matrices_equal(file1, file2):
     return
 
 # Example usage
-check_csv_matrices_equal("../build/system_mat.csv","../mesh/matlab_mesh_generator/Playground/A.csv")
+check_csv_matrices_equal("../build/system_mat_parallel.csv","../build/system_mat_serial.csv")

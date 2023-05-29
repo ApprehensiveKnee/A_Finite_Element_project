@@ -1,6 +1,7 @@
 //===========================================================
-// HEADER FILE FOR THE CLASS MESH AND DOF HANDLER DEFINITIONS
+//     HEADER FILE FOR THE MESH AND DOF HANDLER CLASSES
 //===========================================================
+
 
 #ifndef MESH
 #define MESH

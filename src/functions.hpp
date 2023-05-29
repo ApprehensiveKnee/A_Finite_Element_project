@@ -1,7 +1,10 @@
 
+
 //===========================================================
 //          HEADER FILE FOR THE FUNCTION CLASSES 
 //===========================================================
+
+
 #ifndef FUN
 #define FUN
 #include "elements.hpp"

@@ -32,6 +32,7 @@ class parallelSolver2
 {
 private:
   static constexpr unsigned short DIM = 2;
+  static constexpr unsigned short THREADS = 4;
   //first of all, the mesh that will be saved as a member of solver,
   Mesh<DIM> _mesh;
   // a fe class solver object, to deal with the single elements of the mesh member
@@ -82,7 +83,7 @@ public:
   void setup(const std::string&, const bool& option = true) ;
   void assemble();
   void solve(const bool& print = false, std::ostream& out= std::cout);
-  void process(const std::string&);
+  void process(const std::string&, const bool& mesh_option= false);
 
   // standard getters
   const SparseMatrix<double>& getMat() const;
@@ -96,6 +97,9 @@ protected:
   void _computeStiff(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& mat_locks);
   void _computeMass(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& mat_locks);
   void _computeRHS(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& rhs_locks);
+  
+  // a method to export the solution and mesh on a VTK file
+    void _export(const std::string&, const bool& mesh_option = false) const;
 
     
 };

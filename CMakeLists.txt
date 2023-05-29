@@ -26,10 +26,10 @@ find_package(VTK REQUIRED HINTS $ENV{mkVtkPrefix})
 find_package (Eigen3 3.3 REQUIRED HINTS $ENV{mkEigenPrefix})
 
 # Add useful compiler flags.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnon-virtual-dtor -fopenmp -fconcepts-diagnostics-depth=3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wnon-virtual-dtor -fopenmp -fconcepts-diagnostics-depth=3")
 
 
-set(TARGET src/main.cpp  src/quadrature.cpp src/solver.cpp src/psolver.cpp src/psolver2.cpp) 
+set(TARGET src/main.cpp  src/quadrature.cpp src/solver.cpp src/psolver.cpp src/psolver2.cpp src/psolverColoring.cpp ) 
 add_executable(${CMAKE_PROJECT_NAME} ${TARGET})
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${VTK_LIBRARIES})
 target_link_libraries (${CMAKE_PROJECT_NAME} PRIVATE Eigen3::Eigen)

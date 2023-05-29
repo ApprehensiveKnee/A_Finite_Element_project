@@ -1,6 +1,6 @@
  
 //===========================================================
-//             HEADER FILE FOR THE CLASS SOLVER 
+//             HEADER FILE FOR THE SOLVER CLASS
 //===========================================================
 
 
@@ -17,6 +17,7 @@
 #include "functions.hpp"
 #include "mat_utilities.hpp"
 #include "quadrature.hpp"
+#include "coloring.hpp"
 #include "spectralFE.hpp"
 #include "elements.hpp"
 

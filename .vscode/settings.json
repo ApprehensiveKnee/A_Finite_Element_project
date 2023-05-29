@@ -73,6 +73,7 @@
         "getpot": "cpp",
         "concepts": "cpp",
         "__verbose_abort": "cpp",
-        "bit": "cpp"
+        "bit": "cpp",
+        "set": "cpp"
     }
 }

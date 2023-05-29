@@ -1,5 +1,5 @@
 //===========================================================
-//    HEADER FILE FOR CLASS NODE AND ELEMENTS DEFINITIONS
+//      HEADER FILE FOR NODE AND ELEMENT CLASSES
 //===========================================================
 
 #ifndef ELEM
@@ -353,6 +353,9 @@ private:
     // vector for the internal points of the element, used for the coloring algorithm and computed in the genPoints() method
     // inside the DoF Handler class
     std::vector<unsigned int> _points;
+
+    // a variable to store the color that will be assigned to the element
+    unsigned short _color;
     #endif
 
     // the following is a viual representation of the ordering of vertices adopted for the construction
@@ -390,7 +393,11 @@ public:
               _nodes(nodes),
               _boundary(boundary),
               _nq(initNQ(nx,ny))
-        {}
+        {
+            #ifdef COLORING
+            _color = 0;
+            #endif
+        }
 
     // Getter:gets the id of the element
     const unsigned int& getId() const
@@ -414,6 +421,19 @@ public:
     std::vector<unsigned int>& modifyPoints()
     {
         return _points;
+    };
+
+    // Getter: gets the color assigned to the element
+    const unsigned short& getColor() const
+    {
+        return _color;
+    };
+
+    // Setter: sets the color assigned to the element
+    void setColor(const unsigned short& color)
+    {
+        _color = color;
+        return;
     };
     
     #endif

@@ -1,7 +1,7 @@
 
 
 //===========================================================
-//         s HEADER FILE FOR THE FE SPECTRAL CLASS 
+//         HEADER FILE FOR THE FE SPECTRAL CLASS 
 //===========================================================
 
 #ifndef FE
@@ -111,7 +111,7 @@ namespace FETools
         {
         
             
-            if(geoele.getNQ() == this->getNQ())
+            if(geoele.getNQ() == this->getNQ() && this->getQuad()[0].getW().size() != 0)
             {
                 // In this first case, we just need to update the jacobian of the element after updating the 
                 // element itself:
@@ -128,7 +128,13 @@ namespace FETools
                 unsigned int nqx = _current_elem.getNQ()[0];
                 unsigned int nqy;
                 if constexpr (DIM == 2)
+                {
                     nqy = _current_elem.getNQ()[1];
+                }
+                // copute empty flag
+                bool emptyx = this->getQuad()[0].getW().size() == 0;
+                bool emptyy = this->getQuad()[1].getW().size() == 0;
+                // update the current element  
                 _current_elem = geoele;
                 // update the Jacobian
                 this->_update_J();
@@ -136,30 +142,21 @@ namespace FETools
                 this->_update_quad();
                 // update the evaluation of quadrature points
                 this->_update_D();
+                // In the 1D case just recompute the Bx matrix
+                if(nqx != this->getNQ()[0] || emptyx)
+                {
+                    this->_update_B(0);
+                }
                 if constexpr (DIM ==2)
                 {
                     
-                    
-                    // In this case, recompute Bx
-                    if(nqx != this->getNQ()[0])
-                    {
-                        this->_update_B(0);
-                    }
                     // In this case, recompute By
-                    if(nqy != this->getNQ()[1])
+                    if(nqy != this->getNQ()[1] || emptyy)
                     {
                         this->_update_B(1);
                     }
                     
 
-                }
-                else
-                {
-                    // In the 1D case just recompute the Bx matrix
-                    if(nqx != this->getNQ()[0])
-                    {
-                        this->_update_B(0);
-                    }
                 }
 
             }

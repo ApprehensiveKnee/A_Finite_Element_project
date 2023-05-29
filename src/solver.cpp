@@ -14,21 +14,6 @@ void serialSolver::setup(const std::string& file_name, const bool &option)
             //_mesh.printMesh();
             _dof.genPoints(_mesh);
             //_dof.printPoints();
-
-            #ifdef COLORING
-
-            for(const Element<DIM>& elem : _mesh.getElems())
-            {
-                std::cout << "Element " << elem.getId() << std::endl;
-                std::cout << "{" << std::endl;
-                for(const unsigned int& point_index : elem.getPoints())
-                {
-                    std::cout << "Point " << point_index << std::endl;
-                }
-                std::cout << "} \n" << std::endl;
-            }
-            
-            #endif
         }
 
 
@@ -40,20 +25,7 @@ void serialSolver::setup(const std::string& file_name, const bool &option)
             _dof.genPoints(_mesh);
             //_dof.printPoints();
 
-            #ifdef COLORING
-
-            for(const Element<DIM>& elem : _mesh.getElems())
-            {
-                std::cout << "Element " << elem.getId() << std::endl;
-                std::cout << "{" << std::endl;
-                for(const unsigned int& point_index : elem.getPoints())
-                {
-                    std::cout << "Point " << point_index << std::endl;
-                }
-                std::cout << "} \n" << std::endl;
-            }
-
-            #endif
+            
         }
     }
         
@@ -293,7 +265,7 @@ void  serialSolver::_computeMass()
                                                                         (1. / _fe.getJ().coeff(0, 0)) *
                                                                         _fe.getQuad()[DIM - 1].getW()[j] *
                                                                         (1. / _fe.getJ().coeff(1, 1)) *
-                                                                        _sigma.value(_fe.quadrature_point(i, _dof));
+                                                                        _sigma.value(_fe.quadrature_point(local_ind, _dof));
                 }
                 
                 
@@ -552,8 +524,6 @@ double serialSolver::_errorH1(const bool& print,std::ostream& out)
                 {
                     // determine the index of local quadrature point currently considered
                     unsigned int q = (j)*_fe.getNQ()[0]+i;
-                    // and the global index of the node currently considered
-                    unsigned int gindex = _dof.getMap()[q][elem.getId()-1]-1;
                     
                     // sum all the contributions for the element currenlty considered
                     sum += ((un.coeff(i, j) - _e.value(_fe.quadrature_point(q, _dof))) *

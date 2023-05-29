@@ -1,10 +1,8 @@
 
 //===========================================================
-//         HEADER FILE FOR THE CLASS PARALLEL SOLVER 
+//         HEADER FILE FOR THE PARALLEL SOLVER CLASS (1)
 //===========================================================
-
-
-// OSS: the definitions will be mainly the same, with some slight modifications for support parallel execution with OpenMP
+// PARALLEL IMPLEMENTATION BASED ON THE USE OF THE OPENMP LIBRARY
 
 #ifndef PSOL
 #define PSOL
@@ -53,13 +51,14 @@ namespace std
 
 // ============================================================================================================= 
 
-// The parallel solver class will actively be inheriting form the serial counterpart.
+// The parallel solver class will essentially be "inheriting" form the serial counterpart all the members and methods.
 // The general structure will be the same, yet some methods will be organised "in a parallel setting"
 
 class parallelSolver
 {
 private:
   static constexpr unsigned short DIM = 2;
+  static constexpr unsigned short THREADS = 4;
   //first of all, the mesh that will be saved as a member of solver,
   Mesh<DIM> _mesh;
   // a fe class solver object, to deal with the single elements of the mesh member
@@ -110,7 +109,7 @@ public:
   void setup(const std::string&, const bool &option = true) ;
   void assemble();
   void solve(const bool& print = false, std::ostream& out= std::cout);
-  void process(const std::string&);
+  void process(const std::string&, const bool& mesh_option= false);
 
   // standard getters
   const SparseMatrix<double>& getMat() const;
@@ -126,7 +125,7 @@ protected:
   void _localRHS(FETools::SpectralFE<DIM>&, std::unordered_map<unsigned int, double>&);
 
   // a method to export the solution and mesh on a VTK file
-  void _export( const std::string&) const;
+  void _export(const std::string&, const bool& mesh_option = false) const;
 
     
 };
