@@ -31,7 +31,7 @@ using namespace FETools;
 class parallelSolver2
 {
 private:
-  static constexpr unsigned short DIM = 2;
+  static constexpr unsigned short DIM = _DIM;
   static constexpr unsigned short THREADS = 4;
   //first of all, the mesh that will be saved as a member of solver,
   Mesh<DIM> _mesh;

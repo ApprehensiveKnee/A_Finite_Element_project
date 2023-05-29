@@ -21,12 +21,10 @@
 #include <Eigen/Dense>
 #include <Eigen/SparseCore>
 #include <unsupported/Eigen/SparseExtra>
+#include "variables.hpp"
 
 #define COLORING
 
-// Define some defualt constant quantities...
-inline constexpr double tol= 1.e-16;
-inline constexpr unsigned r = 3;
 
 using namespace Eigen;
 

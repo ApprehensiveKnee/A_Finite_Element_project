@@ -27,7 +27,7 @@ using namespace FETools;
 class parallelSolverColoring
 {
 private:
-  static constexpr unsigned short DIM = 2;
+  static constexpr unsigned short DIM = _DIM;
   static constexpr unsigned short THREADS = 4;
   static constexpr unsigned short MAX_COLORS = 4; // Please note that, for a simple cases such as the ones considered, for a rectangular mesh, 
                                         // the maximum number of possible colors has been chosen considering the maximum number of elements

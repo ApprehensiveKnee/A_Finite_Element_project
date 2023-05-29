@@ -80,11 +80,11 @@
             // 1D case
             if(DIM == 1)
             {
-                // if(p.getX() <=0.5)
-                //         return 0.;
-                //     else
-                //         return (- std::sqrt(p.getX()-0.5));
-                return 4. * M_PI * M_PI * sin(2 * M_PI * p.getX());
+                if(p.getX() <=0.5)
+                        return 0.;
+                    else
+                        return (- std::sqrt(p.getX()-0.5));
+                //return 4. * M_PI * M_PI * sin(2 * M_PI * p.getX());
             }
 
             // 2D case
@@ -109,11 +109,11 @@
             // 1D case
             if constexpr(DIM == 1)
             {
-                // if(p.getX() <=0.5)
-                //     return (-(4./15) * std::pow(0.5,2.5)) * p.getX();
-                // else
-                //     return (-(4./15) * std::pow(0.5,2.5)) * p.getX() + ((4./15) * std::pow(p.getX() - 0.5,2.5));
-                return sin(2 * M_PI * p.getX());
+                if(p.getX() <=0.5)
+                    return (-(4./15) * std::pow(0.5,2.5)) * p.getX();
+                else
+                    return (-(4./15) * std::pow(0.5,2.5)) * p.getX() + ((4./15) * std::pow(p.getX() - 0.5,2.5));
+                //return sin(2 * M_PI * p.getX());
             }
             // 2D case
             else
@@ -127,11 +127,11 @@
             // 1D case
             if constexpr (DIM == 1)
                 {
-                    // if(p.getX() <=0.5)
-                    //     return {(-(4./15) * std::pow(0.5,2.5))};
-                    // else
-                    //     return {(-(4./15) * std::pow(0.5,2.5)) + ((4./15) * 2.5 * std::pow(p.getX() - 0.5,1.5))};
-                    return { 2 * M_PI * cos(2 * M_PI * p.getX())};
+                    if(p.getX() <=0.5)
+                        return {(-(4./15) * std::pow(0.5,2.5))};
+                    else
+                        return {(-(4./15) * std::pow(0.5,2.5)) + ((4./15) * 2.5 * std::pow(p.getX() - 0.5,1.5))};
+                    //return { 2 * M_PI * cos(2 * M_PI * p.getX())};
                 }
                 
             // 2D case
