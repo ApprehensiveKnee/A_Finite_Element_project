@@ -9,7 +9,7 @@ The main goal of the project is to implement a solver for some simple **Partial 
 
 [^1]: C. Canuto, M.Y. Hussaini, A. Quarteroni, T.A. Zang,"Spectral Methods. Fundamentals in Single Domains"Springer Verlag, Berlin Heidelberg New York, 2006.
 
-The rectangular meshes used to analyse the problem are created by modifing the MATLAB script written by prof. Paola Gervasio[^2] and suitably converted into `csv` files form which the code extrapolates the necessary information to compute the approximated solution of the problem considered.
+The rectangular meshes (in the 2D case) used to analyse the problem are created by modifing the MATLAB script written by prof. Paola Gervasio[^2] and suitably converted into `csv` files form which the code extrapolates the necessary information to compute the approximated solution of the problem considered.
 
 [^2]: [Paola Gervasio](gervasio@ing.unibs.it), Department of Mathematics, University of Brescia, 25133 Brescia (Italy). 
 
@@ -33,13 +33,13 @@ Since the code heavily relies on the `Eigen` library, to deal with algrabraic st
 
 Some assuptions and generality restrictions  where taken along the way, to simplify the coding process:
 
-- First and foremost, the code has been written to work, without any changes, to solve a fixed two-dimensional problem. The solver class, in particular, is endowed with a general structure al long as the different in-class methods are concered, still its lines of code have been written to some specific problems: **this means that changing the problem considered would also require to change the solver class to some (shallow) extent**
-
 - The project was carried out with the intention of preserving the generality in dimensions, degree and number of quadrature nodes per cell considered - this is why most of the classes and objects defined are strongly dependent on some global constant parameters.
 Yet along the development of the code, some assumpions where taken:
-   - The degree $r$ of the finite element space used is supposed to be the same for both $x$ an $y$ directions: it is possible to change it in the first lines of the `main.cpp` file, inside the `src` directory.
+   - Even if different classes are endowed with a member (typically an array) to store the degree of the finite element space used along each considered dimension indipendenlty, the degree $r$ of the finite element space used is supposed to be the same for both $x$ an $y$ directions (for the 2D case): it is possible to change it in the first lines of the `main.cpp` file, inside the `src` directory.
 
     - The same holds true for the number of quadrature points along the two directions, set to be equal to $r$ (A total of $r+1$ points along each side of each cell).
+
+- As for the imposition of boundary conditions, in all the test cases considered, Dirichelet conditions are inposed at the bounday of the considered domain. This is done explicitly inside the methods of the solver class, which means that imposing different conditions at the boundary would require to change the src code direcly - the changes would not be extensive, and only limited to the source files containing the impelementation of the solver, i.e. solver.cpp, psolver.cpp and the likes.
 
 <br/>
 
@@ -62,7 +62,6 @@ The code comes with a CMake file to make the compilation process easier: to run 
 
 The solution is then stored with the mesh inside a `solution.vtp` file inside the `build` directory and can be easily visualized using ParaView.
 
->> insert ooption selection from terminal
 
 <br/>
 
@@ -72,13 +71,50 @@ The solution is then stored with the mesh inside a `solution.vtp` file inside th
 <br/>
 
 
-The test case considered is the following:
+The test cases considered are the following:
+
+### **1D Test case**
+
+Let $\Omega = (0, 1)$, and let us consider the following Poisson problem:
+
+$$ 
+\begin{cases}
+    - (\mu (x) u' (x))' = f && x\space\epsilon\space\Omega \\ 
+     u(0) = u(1) = 0
+\end{cases}
+$$
+
+where $\ mu(x) = 1$ and $f(x)$ is defined as:
+
+$$ 
+f(x) = 
+\begin{cases}
+    0  && \textrm{ if } x \leq \frac{1}{2} \\ 
+    - \sqrt{x - 1/2} && \textrm{ if } x > \frac{1}{2}
+\end{cases}
+$$
+
+The exact solution is
+
+$$ 
+u_ex(x) = 
+\begin{cases}
+    A && \textrm{ if } x \leq \frac{1}{2} \\ 
+    Ax + \frac{4}{15}(x - \frac{1}{2})^\frac{5}{2} && \textrm{ if } x > \frac{1}{2} 
+\end{cases}
+$$
+
+where $ A = - \frac{4}{15}(\frac{1}{2})^\frac{5}{2}$
+
+
+### **2D Test Case**
+
 Let $\Omega = (0, 1) × (0, 1)$, and let us consider the following Poisson problem with homogeneous Dirichlet boundary conditions:
 
 $$ 
 \begin{cases}
     \nabla(\mu \nabla u) + \sigma u = f && x\space\epsilon\space\Omega \\ 
-     u = 0 && on\space\delta\Omega
+     u = 0 && \textrm{on}\space\delta\Omega
 \end{cases}
 $$
 
@@ -86,15 +122,13 @@ where $x = (x, y)^T$ , $\mu(x) = 1$, $\sigma = 1$ and
 $$f(x)=(20π2 +1)sin(2πx)sin(4πy)$$
 The exact solution to this problem is
 $$u_{ex}(x, y) = sin(2\pi x) sin(4\pi y)$$
-
->> insert more test cases
 <br/>
 
 
 ## The parallel code
 ---
 The parallelisation was carried out using OpenMP:
-two main approaches where considered when parallelising the code, both of them centered around the assembly phase of global system matrix.
+three main approaches where considered when parallelising the code, all of them centered around the assembly phase of global system matrix.
 
 - The first approach is based on the use of **OpenMP locks**: when the single threads compute a subset of the local matrixes, it may appen that two or more of them were to write on the same entry of the matrix. To avoid data races, locks where used.
 Idealy it would be better to have a single lock for each coefficinet of the matrix, but doing so would result in terrible performances due to the use of lock's overheads. To mitigate such phenomena, the idea would be to define a resticted number of locks: specifically, we define a set of lock to partition the global matrix into sub-matrixes. Each time a thread accesses an element of one of these blocks, it acquires the lock for the specifc sub-matrix and then returns it when it has finished updating the coefficient.
@@ -102,6 +136,8 @@ To obtain a better performance we also use a **_try lock_ mechanism**.
 
 - The second approach would require using some **local support** varibles, private to each thread: each one of them creates a unordered map storing the non-zero elements. To do so, the keys of such maps are pairs of unsigned integers, representing the indexes of the global matrix. After the computation of the local matrixes is done, each thread "loads its contribution" onto the global matrix serially.
 A slightly different approach would be to consider vector os Eigen matrixes for each thread to map onto the global one at the end of the computation phase. Again the compression onto the global matrix would have to be done serially as to avoid **race conditions**
+
+- Finally the third approach revolves around the **coloring algorithm** based on graph theory: the elements assigned to some color, in such a way that elements having some sharing points do not have the same color. Havind divided the elements in such a way, the ones belonging to the same group can be processed in parallels, as their contribution to the global matrix do not map on the same coefficients, which means that **there can be no possibility of race conditions occurring**.
 
 ## References
 ---
