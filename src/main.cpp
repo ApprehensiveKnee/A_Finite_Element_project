@@ -28,7 +28,6 @@ int main(int /*argc*/, char * /*argv*/[]){
 
     // Define the degree of the FE space to solve the problem
 
-    constexpr unsigned int r = 2;
 
     // And call the solver for the considered problem
 
@@ -42,17 +41,17 @@ int main(int /*argc*/, char * /*argv*/[]){
     solver.solve();
 
     // ================ WRITE MATRIX TO A FILE =================
-    // const static Eigen::IOFormat CSVFormat(StreamPrecision, DontAlignCols, ",", "\n");
-    // Eigen::MatrixXd dense_mat1 = solver.getMat().toDense();
-    // std::ofstream file1("system_mat_serial.csv");
-    // file1 <<std::setprecision(5)<< dense_mat1.format(CSVFormat);
+    const static Eigen::IOFormat CSVFormat(StreamPrecision, DontAlignCols, ",", "\n");
+    Eigen::MatrixXd dense_mat1 = solver.getMat().toDense();
+    std::ofstream file1("system_mat_serial.csv");
+    file1 <<std::setprecision(5)<< dense_mat1.format(CSVFormat);
 
-    // std::ofstream file01("system_rhs_serial.csv");
-    // file01 <<std::setprecision(5)<< solver.getRHS().format(CSVFormat);
+    std::ofstream file01("system_rhs_serial.csv");
+    file01 <<std::setprecision(5)<< solver.getRHS().format(CSVFormat);
     // ================ WRITE MATRIX TO A FILE =================
-    // std::cout << solver.getRHS() << std::endl;
-    // std::cout << solver.getSol() << std::endl;
-    solver.process("0.2000", true);
+    // // std::cout << solver.getRHS() << std::endl;
+    // // std::cout << solver.getSol() << std::endl;
+    // solver.process("0.2000", true);
 
     // std::cout << "\n\nProcess ended correctly\n"<< std::endl;
 
@@ -68,7 +67,7 @@ int main(int /*argc*/, char * /*argv*/[]){
     //Eigen::initParallel();
     
     // parallelSolver psolver(r);
-    // psolver.setup( "0.0500", true);
+    // psolver.setup( "0.2000", true);
     // psolver.assemble();
     // // ================ WRITE MATRIX TO A FILE =================
     // // Eigen::MatrixXd dense_mat2 = psolver.getMat().toDense();
@@ -79,7 +78,7 @@ int main(int /*argc*/, char * /*argv*/[]){
     // // file02 <<std::setprecision(5)<< psolver.getRHS().format(CSVFormat);
     // // ================ WRITE MATRIX TO A FILE =================
     // psolver.solve();
-    // psolver.process("0.0500", true);
+    // psolver.process("0.2000", true);
 
     // parallelSolver2 psolver2(r);
     // std::cout << psolver2.getMat() << std::endl;
@@ -93,16 +92,16 @@ int main(int /*argc*/, char * /*argv*/[]){
 
     // ---------------------------------------------------------------------------------------------
 
-    // parallelSolverColoring psolverColoring(r);
-    // psolverColoring.setup("0.2000", true);
-    // psolverColoring.assemble();
+    parallelSolverColoring psolverColoring(r);
+    psolverColoring.setup("0.2000", true);
+    psolverColoring.assemble();
     // // ================ WRITE MATRIX TO A FILE =================
-    // Eigen::MatrixXd dense_mat2 = psolverColoring.getMat().toDense();
-    // std::ofstream file2("system_mat_parallel.csv");
-    // file2 <<std::setprecision(5)<< dense_mat2.format(CSVFormat);
+    Eigen::MatrixXd dense_mat2 = psolverColoring.getMat().toDense();
+    std::ofstream file2("system_mat_parallel.csv");
+    file2 <<std::setprecision(5)<< dense_mat2.format(CSVFormat);
 
-    // std::ofstream file02("system_rhs_parallel.csv");
-    // file02 <<std::setprecision(5)<< psolverColoring.getRHS().format(CSVFormat);
+    std::ofstream file02("system_rhs_parallel.csv");
+    file02 <<std::setprecision(5)<< psolverColoring.getRHS().format(CSVFormat);
     // // ================ WRITE MATRIX TO A FILE =================
     // psolverColoring.solve();
     // psolverColoring.process("0.2000", true);

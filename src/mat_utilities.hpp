@@ -50,45 +50,38 @@ namespace ExtendMat
     {
     public:
         ExtendedB() = default;
-        ExtendedB(const std::array<Derived,DIM>& B, const Element<DIM>& geoele, const unsigned int& re = r, const bool& transpose = false)
+        ExtendedB(const std::array<Derived,DIM>& B, const Element<DIM>& geoele, const bool& transpose = false)
         : _B(B),
         _current(geoele),
-        _r(re),
         _transpose(transpose)
         {}
 
         int rows() const
         {
             if(_transpose)
-                return DoFHandler<DIM>(_r, _r).dof_per_cell(); /* dof_per_cell */
+                return _current.getNQ()[0] * (DIM==2?_current.getNQ()[DIM-1]:1); /* dof_per_cell */
             else
                 return DIM * _current.getNQ()[0] * (DIM==2?_current.getNQ()[DIM-1]:1);/*DIM * n_q*/
         }
 
         int cols() const
         {
-            // REMARK:
-            // dofs per cell and number of quadrature points are supposeed to be the same, still
-            // this implementation better explains how the B matrix is built 
-            // Ideally, we could just get the number of the cols form nq, since the
+            // REMARK: just get the number of the cols form nq, since the
             // number of quadarture points and dofs is supposed to be the same
             if(_transpose)
                 return DIM * _current.getNQ()[0] * (DIM==2?_current.getNQ()[DIM-1]:1);/*DIM * n_q*/
             else
-                return DoFHandler<DIM>(_r, _r).dof_per_cell(); /* dof_per_cell */
+                return _current.getNQ()[0] * (DIM==2?_current.getNQ()[DIM-1]:1); /* dof_per_cell */
         }
 
         // Access operator to implement matrix free computation: no need to explicitly generate the matrix
         double operator()(const unsigned int& i/* nqx*nqy*DIM - no transpose */, const unsigned int& j/*nqx*nqy - no transpose*/) const
         {
             
-            // REMARK
-            // Here again, we could have just used a single variable, yet for better clarity, the choice was
-            // to "keep the dimensions separated"
             if(_transpose)
             {
-                const unsigned int dofx = DoFHandler<DIM>(_r, _r).getDeg()[0] +1;
-                const unsigned int dofy = DoFHandler<DIM>(_r, _r).getDeg()[1] +1;
+                const unsigned int dofx = _current.getNQ()[0];
+                const unsigned int dofy = _current.getNQ()[1];
 
                 if constexpr(DIM == 2)
                 {
@@ -99,15 +92,15 @@ namespace ExtendMat
                         if((j>>1)/_current.getNQ()[0] == i/dofx) // i and j indexing on an element on the "diagonal" block
                             return _B[0].coeff((j/2)%_current.getNQ()[0],i%dofx);
                         else 
-                            return 0.;
+                            return zero_value;
                     }
                     // lines of By_ref
-                    else /*odd colss*/
+                    else /*odd cols*/
                     {
                         if((j>>1)%_current.getNQ()[1] == i%dofy) // i and j indexing on an elemente on the diagonal block
                             return _B[1].coeff((j>>1)/_current.getNQ()[1], i/dofy);
                         else 
-                            return 0.;
+                            return zero_value;
                     }
 
                 }
@@ -116,15 +109,15 @@ namespace ExtendMat
                     if(j/_current.getNQ()[0] == i/dofx) // i and j indexing on an element on the "diagonal" block
                             return _B[0].coeff(j%_current.getNQ()[0],i%dofx);
                         else 
-                            return 0.;
+                            return zero_value;
                 }
 
             }
             else
             {
 
-                const unsigned int dofx = DoFHandler<DIM>(_r, _r).getDeg()[0] +1;
-                const unsigned int dofy = DoFHandler<DIM>(_r, _r).getDeg()[1] +1;
+                const unsigned int dofx = _current.getNQ()[0];
+                const unsigned int dofy = _current.getNQ()[1];
 
                 if constexpr(DIM == 2)
                 {
@@ -134,7 +127,7 @@ namespace ExtendMat
                         if((i>>1)/_current.getNQ()[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
                             return _B[0].coeff((i/2)%_current.getNQ()[0],j%dofx);
                         else 
-                            return 0.;
+                            return zero_value;
                     }
                     // lines of By_ref
                     else /*odd rows*/
@@ -142,7 +135,7 @@ namespace ExtendMat
                         if((i>>1)%_current.getNQ()[1] == j%dofy) // i and j indexing on an elemente on the diagonal block
                             return _B[1].coeff((i>>1)/_current.getNQ()[1], j/dofy);
                         else 
-                            return 0.;
+                            return zero_value;
                     }
 
                 }
@@ -151,7 +144,7 @@ namespace ExtendMat
                     if(i/_current.getNQ()[0] == j/dofx) // i and j indexing on an element on the "diagonal" block
                             return _B[0].coeff(i%_current.getNQ()[0],j%dofx);
                         else 
-                            return 0.;
+                            return zero_value;
                 }
 
             }
@@ -161,7 +154,7 @@ namespace ExtendMat
 
         ExtendedB<Derived,DIM> transpose() const
         {
-            return ExtendedB<Derived,DIM>(_B, _current, _r, !_transpose);
+            return ExtendedB<Derived,DIM>(_B, _current, !_transpose);
         }
 
         //_______________________________ EIGEN SUPPORT ______________________________
@@ -199,6 +192,39 @@ namespace ExtendMat
         }
         //_______________________________ EIGEN SUPPORT ______________________________
 
+        // Updater for the reference matrix
+        void update(const Element<DIM> &elem,const std::vector<double>& x,const unsigned int& r,const unsigned short dir)
+        {
+            _current = elem;
+            unsigned int np = x.size();
+            // First of all, as a precautionary measure, we erase the content of the _der_matrix member
+            _B[dir].resize(elem.getNQ()[0],elem.getNQ()[0]);
+            const unsigned int n = np -1;
+            const unsigned int dof = DoFHandler<DIM>(r,r).getDeg()[dir] + 1;
+            std::vector<double> lnx(np);
+            //compute the legendre polynomials over the LGL nodes
+            FETools::Quadrature::legendre_pol(x, n, lnx);
+            for(unsigned int j = 0; j < dof ; j++)
+            {
+                for(unsigned int i = 0; i < np; ++i)
+                {
+                    if(i != j)
+                    {
+                        _B[dir].coeffRef(i,j) = lnx[i]/((x[i]-x[j])*lnx[j]);
+                    }
+                }
+            }
+            _B[dir].coeffRef(0,0) = -0.25*n*np;
+            _B[dir].coeffRef(np-1,np-1) = 0.25*n*np;
+        
+            
+        }
+
+        const std::array<Derived,DIM>& getRef() const
+        {
+            return _B;
+        }
+
         // Destructor
 
         ~ExtendedB() = default;
@@ -206,10 +232,13 @@ namespace ExtendMat
         
 
     private:
-        const std::array<Derived,DIM>& _B;
-        const Element<DIM>& _current;
-        const unsigned int& _r;
+        // Eigen Sparse Matrixes storing the values of the gradient of the basis functions over the x and y directions, given the quadrature points of the elements
+        // ----> computed just one if the number of quadrature points is the same for all the elements. Otherwhise there is a need to recompute 
+        // it in the update_current() method
+        std::array<Derived,DIM> _B;
+        Element<DIM> _current;
         const bool _transpose;
+        static constexpr double zero_value = 0.0;
     };
 
     //==========================================================================================================
@@ -242,7 +271,7 @@ namespace ExtendMat
             if( i == j)
                 return _A.coeff(i/DIM, j/DIM);
             else
-                return 0.;
+                return zero_value;
         }
 
 
@@ -283,12 +312,57 @@ namespace ExtendMat
 
         //_______________________________ EIGEN SUPPORT ______________________________
 
+        // Updater for the reference matrix
+
+        void update(const Element<DIM>& elem, std::array<std::vector<double>,DIM>& weights)
+        {
+            // Clear _A and resize
+            _A.resize(elem.getNQ()[0]*((DIM ==2)?elem.getNQ()[DIM-1]:1),elem.getNQ()[0]*((DIM==2)?elem.getNQ()[DIM-1]:1));
+            // Compute the quadrature nodes on the quadrature points and insert them in D
+            unsigned int index = 0;
+
+            if constexpr(DIM == 2)
+            {
+                //loop over the y coordinate
+                for(auto j : weights[1])
+                {
+                    //loop over x coordinate
+                    for(auto i : weights[0])
+                    {
+                        _A.coeffRef(index,index)=(i*j);
+                        index++;
+                    }
+                }
+
+            }
+            else
+            {
+                //loop over the x coordinate
+                for(auto i : weights[0])
+                {
+                    _A.coeffRef(index,index)=(i);
+                    index++;
+                }
+
+            }
+        }
+
+        const Derived& getRef() const
+        {
+            return _A;
+        } 
+
+
         // Destructor
 
         ~ExtendedD() = default;
 
     private:
-        const Derived& _A;
+        // An Eigen Diagonal Matrix storing the values of the quadrature points for the single quadrature points stored inn _quad_points
+        // ----> computed just once if the number of quadrature points are the same for all the elements. Otherwhise there is a need to recompute
+        // it in the update_current() method...
+        Derived _A;
+        static constexpr double zero_value = 0.0;
     };
 
 
@@ -303,7 +377,7 @@ namespace ExtendMat
     {
     public:
         ExtendedJ() = default;
-        ExtendedJ(const Derived &A, const Element<DIM>& geoele, const bool& transpose = false)
+        ExtendedJ(const Derived& A, const Element<DIM>& geoele, const bool& transpose = false)
         : _A(A),
         _current(geoele),
         _transpose(transpose)
@@ -454,14 +528,39 @@ namespace ExtendMat
         }
         //_______________________________ EIGEN SUPPORT ______________________________
 
-        
+        // Updater of the reference matrix
+        void update(const Element<DIM>& elem)
+        {
+
+            _current = elem;
+            if constexpr(DIM == 2)
+            {
+                _A.resize(DIM, DIM);
+                _A = _current.template jacobian<Matrix2d>().inverse().transpose();
+
+            }
+            else
+            {
+                _A.resize(DIM,DIM);
+                _A << 1/_current.template jacobian<double>();
+            }
+                
+            return;
+        }
+
+        const Derived& getRef() const
+        {
+            return _A;
+        } 
+
         // Destructor
         ~ExtendedJ() = default;
 
     private:
-        const Derived& _A;
-        const Element<DIM>& _current;
+        Derived _A;
+        Element<DIM> _current;
         const bool _transpose;
+        static constexpr double zero_value = 0.0;
     };
 
     //==========================================================================================================

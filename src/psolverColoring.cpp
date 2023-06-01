@@ -85,6 +85,9 @@ void parallelSolverColoring::assemble()
     // Outer loop over the colors (cannot be parallelized)
     for(unsigned int color = 0; color < _colorGroups.size(); color++)
     {
+        if(_colorGroups[color].size() == 0)
+            continue;
+
         std::cout << "\nAssembling the system matrix for the color " << color << "...\n" << std::endl;
         std::cout << "Elements in the color " << color << ": " << std::endl;
 
@@ -219,7 +222,7 @@ void  parallelSolverColoring::_localStiff(FETools::SpectralFE<DIM>& _fe)
                 {
                     std::cout << "Writing: " << _dof.getMap()[i][_fe.getCurrent().getId()-1]-1 << ", " << _dof.getMap()[j][_fe.getCurrent().getId()-1]-1 << std::endl;
 
-                    //_system_mat.coeffRef(_dof.getMap()[i][_fe.getCurrent().getId()-1]-1, _dof.getMap()[j][_fe.getCurrent().getId()-1]-1) += 1; //LocStiff(i,j)*_mu.value(_fe.quadrature_point(j,_dof));  
+                    _system_mat.coeffRef(_dof.getMap()[i][_fe.getCurrent().getId()-1]-1, _dof.getMap()[j][_fe.getCurrent().getId()-1]-1) += LocStiff(i,j)*_mu.value(_fe.quadrature_point(j,_dof));  
                         
                 }   
                 

@@ -120,9 +120,9 @@ public:
 
 protected:
   void _apply_boundary(const Element<DIM>&,std::unordered_map<unsigned int, double>&, const std::map<unsigned int, const Function<DIM> *>&);
-  void _localStiff(FETools::SpectralFE<DIM>&, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
-  void _localMass(FETools::SpectralFE<DIM>&, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
-  void _localRHS(FETools::SpectralFE<DIM>&, std::unordered_map<unsigned int, double>&);
+  void _localStiff(std::shared_ptr<FETools::SpectralFE<DIM>>, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
+  void _localMass(std::shared_ptr<FETools::SpectralFE<DIM>>, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
+  void _localRHS(std::shared_ptr<FETools::SpectralFE<DIM>>, std::unordered_map<unsigned int, double>&);
 
   // a method to export the solution and mesh on a VTK file
   void _export(const std::string&, const bool& mesh_option = false) const;

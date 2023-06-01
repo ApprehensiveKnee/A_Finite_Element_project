@@ -210,7 +210,9 @@ void  serialSolver::_computeStiff()
         // }
 
         //Compute the local matrix and compress it onto the global matrix using the ID array (_dof.getMap())
+
         MatrixXd LocStiff = ((_fe.J_cell_invT() * _fe.B_cell()).transpose()*(_fe.D_cell()*_fe.detJ())*(_fe.J_cell_invT() * _fe.B_cell()));
+
         for(unsigned int i = 0; i < _dof.dof_per_cell(); i++)
         {
             for(unsigned int j = 0; j <_dof.dof_per_cell(); j++)

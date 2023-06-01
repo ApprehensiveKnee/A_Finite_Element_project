@@ -130,7 +130,10 @@ public:
     void printPoint(std::ostream &out = std::cout) const
     {
         auto temp = this->getCoord();
-        out << temp[0] << ", " <<temp[1] << std::endl;
+        if constexpr (DIM == 2)
+            out << temp[0] << ", " <<temp[1] << std::endl;
+        else 
+            out << temp[0] << std::endl;
         out << "boundary: " << this->getBound() << std::endl;
         
         return;

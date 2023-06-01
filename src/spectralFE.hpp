@@ -33,12 +33,9 @@ namespace FETools
               _qr(),
               _r(re),
               _quad_points(),
-              _D_ref((re+1) * DIM == 2 ? (re+1) : 1 /* n_q */, (re+1) * DIM == 2 ? (re+1) : 1 /* n_q */),
-              _B_ref(initMatArray(re)), // dof_per_cell = n_q
-              _J_invT(DIM, DIM),
-              _Dcell(_D_ref),
-              _Jcell_invT(_J_invT, _current_elem),
-              _Bcell(_B_ref, _current_elem, _r){};
+              _Dcell(SparseMatrix<double>((re+1) * DIM == 2 ? (re+1) : 1 /* n_q */, (re+1) * DIM == 2 ? (re+1) : 1 /* n_q */)),
+              _Jcell_invT(MatrixXd(DIM,DIM), _current_elem),
+              _Bcell(initMatArray(re), _current_elem){}; // dof_per_cell = n_q
 
         // Default getters
         const Element<DIM>& getCurrent() const
@@ -68,17 +65,17 @@ namespace FETools
 
         const SparseMatrix<double>& getD() const
         {
-            return _D_ref;
+            return _Dcell.getRef();
         }
 
-        const std::array<SparseMatrix<double>, DIM>& getB( ) const
+        const std::array<SparseMatrix<double>, DIM>& getB() const
         {
-            return _B_ref;
+            return _Bcell.getRef();
         }
 
         const MatrixXd& getJ() const
         {
-            return _J_invT;
+            return _Jcell_invT.getRef();
         } 
 
         const ExtendMat::ExtendedD<SparseMatrix<double>,DIM>& D_cell() const
@@ -284,37 +281,17 @@ namespace FETools
         // a method to update the D_ref matrix
         void _update_D()
         {
-            // Clear _D_ref and resize
-            _D_ref.resize(this->getNQ()[0]*((DIM ==2)?this->getNQ()[DIM-1]:1),this->getNQ()[0]*((DIM==2)?this->getNQ()[DIM-1]:1));
-            // Compute the quadrature nodes on the quadrature points and insert them in D
-            unsigned int index = 0;
-
-            if constexpr(DIM == 2)
+            if constexpr (DIM ==2)
             {
-                //loop over the y coordinate
-                for(auto j : this->_comp_quad_w(1))
-                {
-                    //loop over x coordinate
-                    for(auto i : this->_comp_quad_w(0))
-                    {
-                        _D_ref.coeffRef(index,index)=(i*j);
-                        index++;
-                    }
-                }
-
-
-            }
+                std::array<std::vector<double>, DIM> weights = {this->_comp_quad_w(0), this->_comp_quad_w(1)};
+                _Dcell.update(_current_elem,weights);
+            } 
             else
             {
-                //loop over the x coordinate
-                for(auto i : this->_comp_quad_w(0))
-                {
-                    _D_ref.coeffRef(index,index)=(i);
-                    index++;
-                }
-
+                std::array<std::vector<double>, DIM> weights = {this->_comp_quad_w(0)};
+               _Dcell.update(_current_elem,weights);
             }
-
+                
             return;
         }
 
@@ -323,32 +300,10 @@ namespace FETools
         // please note: this function needs the correct values of the  quadrature point on the 1D reference interval to work correctly,
         // as such it is necessary to update the nodes of the Quadrature object before computing the matrix. This is, if the number of quadrature points
         // changed between the dimensions inside a certain element or between elements
-        void _update_B( const unsigned int& dir)
+        void _update_B(const unsigned short& dir)
         {
             std::vector<double> x = this->_comp_quad_c(dir);
-            unsigned int np = x.size();
-            
-            // First of all, as a precautionary measure, we erase the content of the _der_matrix member
-            _B_ref[dir].resize(this->getNQ()[0],this->getNQ()[0]);
-            const unsigned int n = np -1;
-            const unsigned int dof = DoFHandler<DIM>(this->getDeg(), this->getDeg()).getDeg()[dir] + 1;
-            std::vector<double> lnx(np);
-            //compute the legendre polynomials over the LGL nodes
-            FETools::Quadrature::legendre_pol(x, n, lnx);
-            for(unsigned int j = 0; j < dof ; j++)
-            {
-                for(unsigned int i = 0; i < np; ++i)
-                {
-                    if(i != j)
-                    {
-                        _B_ref[dir].coeffRef(i,j) = lnx[i]/((x[i]-x[j])*lnx[j]);
-                    }
-                }
-            }
-            _B_ref[dir].coeffRef(0,0) = -0.25*n*np;
-            _B_ref[dir].coeffRef(np-1,np-1) = 0.25*n*np;
-        
-            
+            _Bcell.update(_current_elem,x,_r,dir);
 
             return;
         }
@@ -356,18 +311,7 @@ namespace FETools
         /// a method to update the jacobian of the current element
         void _update_J()
         {
-            if constexpr(DIM == 2)
-            {
-                _J_invT.resize(DIM, DIM);
-                _J_invT = _current_elem.template jacobian<Matrix2d>().inverse().transpose();
-
-            }
-            else
-            {
-                _J_invT.resize(DIM,DIM);
-                _J_invT << 1/_current_elem.template jacobian<double>();
-            }
-                
+            _Jcell_invT.update(_current_elem);
             return;
         };
 
@@ -395,16 +339,7 @@ namespace FETools
         const unsigned int _r;
         //  A vector containig the coordinates of the quadrature points of the current elements
         std::vector<Point<DIM>> _quad_points;
-        // An Eigen Diagonal Matrix storing the values of the quadrature points for the single quadrature points stored inn _quad_points
-        // ----> computed just once if the number of quadrature points are the same for all the elements. Otherwhise there is a need to recompute
-        // it in the update_current() method...
-        SparseMatrix<double> _D_ref;
-        // Eigen Sparse Matrixes storing the values of the gradient of the basis functions over the x and y directions, given the quadrature points of the elements
-        // ----> computed just one if the number of quadrature points is the same for all the elements. Otherwhise there is a need to recompute 
-        // it in the update_current() method
-        std::array<SparseMatrix<double>, DIM> _B_ref;
-        // Jacobian of the element
-        MatrixXd _J_invT;
+
         // Extensions of the previous local matrixes
         ExtendMat::ExtendedD<SparseMatrix<double>,DIM> _Dcell;
         ExtendMat::ExtendedJ<MatrixXd, DIM> _Jcell_invT;
