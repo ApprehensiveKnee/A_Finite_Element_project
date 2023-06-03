@@ -163,9 +163,9 @@ void parallelSolver::assemble()
             for(const unsigned int& elem_id : local_elems)
             {
                 // For each element loop over its quadrature points
-                const Element<DIM>& elem = _mesh.getElems()[elem_id-1];
+                Element<DIM> elem = _mesh.getElems()[elem_id-1];
                 //Loop over each quadrature point for each element
-                for(unsigned int q = 0; q < elem.getNQ()[0]*elem.getNQ()[1]; ++q)
+                for(unsigned int q = 0; q < elem.getNQ()[0]*(DIM==2?elem.getNQ()[1]:1); ++q)
                 {
                     unsigned int global_index_x = _dof.getMap()[q][elem.getId()-1]-1;
                     unsigned short bound = _dof.getPoints()[global_index_x].getBound();
@@ -174,21 +174,21 @@ void parallelSolver::assemble()
                     if(bound) // Check for boundary condition to avoid accessing 0 elements
                     {
                         // If element is on the boundary, just access the diagonal of the matrix and put it to 1
-                        //_system_mat.coeffRef(global_index_x,global_index_x) = 1;
+                        _system_mat.coeffRef(global_index_x,global_index_x) = 1;
                     }
                     else
                     {
                         
                         
 
-                        for(unsigned int p = 0; p < elem.getNQ()[0]*elem.getNQ()[1]; ++p)
+                        for(unsigned int p = 0; p < elem.getNQ()[0]*(DIM==2?elem.getNQ()[1]:1); ++p)
                         {
 
                             unsigned int global_index_y = _dof.getMap()[p][elem.getId()-1]-1;
                             // Otherwise, access all the elements on the row
 
                             //std::cout << " Key: " << global_index_x << ", " << global_index_y << std::endl;
-                            _system_mat.coeffRef(global_index_x,global_index_y) += 1;//mat_entries.at(std::make_pair(global_index_x, global_index_y));
+                            _system_mat.coeffRef(global_index_x,global_index_y) +=mat_entries.at(std::make_pair(global_index_x, global_index_y));
                             mat_entries.at(std::make_pair(global_index_x, global_index_y)) = 0;
                             
                         }

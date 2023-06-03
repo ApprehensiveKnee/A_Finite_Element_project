@@ -37,6 +37,16 @@ namespace FETools
               _Jcell_invT(MatrixXd(DIM,DIM), _current_elem),
               _Bcell(initMatArray(re), _current_elem){}; // dof_per_cell = n_q
 
+        // Copy constructor
+        SpectralFE(const SpectralFE<DIM> &other)
+            : _current_elem(other._current_elem),
+              _qr(other._qr),
+              _r(other._r),
+              _quad_points(other._quad_points),
+              _Dcell(other._Dcell),
+              _Jcell_invT(other._Jcell_invT),
+              _Bcell(other._Bcell){};
+
         // Default getters
         const Element<DIM>& getCurrent() const
         {

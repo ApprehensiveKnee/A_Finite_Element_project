@@ -34,7 +34,7 @@ int main(int /*argc*/, char * /*argv*/[]){
 
     serialSolver solver(r);
 
-    solver.setup("0.2000", true);
+    solver.setup("0.1000", true);
 
 
     solver.assemble();
@@ -49,8 +49,6 @@ int main(int /*argc*/, char * /*argv*/[]){
     std::ofstream file01("system_rhs_serial.csv");
     file01 <<std::setprecision(5)<< solver.getRHS().format(CSVFormat);
     // ================ WRITE MATRIX TO A FILE =================
-    // // std::cout << solver.getRHS() << std::endl;
-    // // std::cout << solver.getSol() << std::endl;
     // solver.process("0.2000", true);
 
     // std::cout << "\n\nProcess ended correctly\n"<< std::endl;
@@ -64,46 +62,52 @@ int main(int /*argc*/, char * /*argv*/[]){
 
     // Initialize Eigen for parallel environment
 
-    //Eigen::initParallel();
+    Eigen::initParallel();
     
     // parallelSolver psolver(r);
-    // psolver.setup( "0.2000", true);
+    // psolver.setup( "0.1000", true);
     // psolver.assemble();
     // // ================ WRITE MATRIX TO A FILE =================
-    // // Eigen::MatrixXd dense_mat2 = psolver.getMat().toDense();
-    // // std::ofstream file2("system_mat_parallel.csv");
-    // // file2 <<std::setprecision(5)<< dense_mat2.format(CSVFormat);
+    // Eigen::MatrixXd dense_mat2 = psolver.getMat().toDense();
+    // std::ofstream file2("system_mat_parallel.csv");
+    // file2 <<std::setprecision(5)<< dense_mat2.format(CSVFormat);
 
-    // // std::ofstream file02("system_rhs_parallel.csv");
-    // // file02 <<std::setprecision(5)<< psolver.getRHS().format(CSVFormat);
+    // std::ofstream file02("system_rhs_parallel.csv");
+    // file02 <<std::setprecision(5)<< psolver.getRHS().format(CSVFormat);
     // // ================ WRITE MATRIX TO A FILE =================
     // psolver.solve();
     // psolver.process("0.2000", true);
 
-    // parallelSolver2 psolver2(r);
+    parallelSolver2 psolver2(r);
     // std::cout << psolver2.getMat() << std::endl;
-    // psolver2.setup(1, "0.5000");
-    // psolver2.assemble();
-    // std::cout << " COMMA " << std::endl;
-    // psolver2.getMat().eval();
-    // std::cout << psolver2.getMat().coeff(0,0) << std::endl;
-
-    // ---------------------------------------------------------------------------------------------
-
-    // ---------------------------------------------------------------------------------------------
-
-    parallelSolverColoring psolverColoring(r);
-    psolverColoring.setup("0.2000", true);
-    psolverColoring.assemble();
-    // // ================ WRITE MATRIX TO A FILE =================
-    Eigen::MatrixXd dense_mat2 = psolverColoring.getMat().toDense();
+    psolver2.setup("0.1000", true);
+    psolver2.assemble();
+    // ================ WRITE MATRIX TO A FILE =================
+    Eigen::MatrixXd dense_mat2 = psolver2.getMat().toDense();
     std::ofstream file2("system_mat_parallel.csv");
     file2 <<std::setprecision(5)<< dense_mat2.format(CSVFormat);
 
     std::ofstream file02("system_rhs_parallel.csv");
-    file02 <<std::setprecision(5)<< psolverColoring.getRHS().format(CSVFormat);
-    // // ================ WRITE MATRIX TO A FILE =================
-    // psolverColoring.solve();
+    file02 <<std::setprecision(5)<< psolver2.getRHS().format(CSVFormat);
+    // ================ WRITE MATRIX TO A FILE =================
+    psolver2.solve();
+
+    // ---------------------------------------------------------------------------------------------
+
+    // ---------------------------------------------------------------------------------------------
+
+    // parallelSolverColoring psolverColoring(r);
+    // psolverColoring.setup("0.1000", true);
+    // psolverColoring.assemble();
+    // // // ================ WRITE MATRIX TO A FILE =================
+    // Eigen::MatrixXd dense_mat2 = psolverColoring.getMat().toDense();
+    // std::ofstream file2("system_mat_parallel.csv");
+    // file2 <<std::setprecision(5)<< dense_mat2.format(CSVFormat);
+
+    // std::ofstream file02("system_rhs_parallel.csv");
+    // file02 <<std::setprecision(5)<< psolverColoring.getRHS().format(CSVFormat);
+    // // // ================ WRITE MATRIX TO A FILE =================
+    //  psolverColoring.solve();
     // psolverColoring.process("0.2000", true);
 
     

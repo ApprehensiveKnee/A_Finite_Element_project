@@ -88,56 +88,40 @@ void parallelSolverColoring::assemble()
         if(_colorGroups[color].size() == 0)
             continue;
 
-        std::cout << "\nAssembling the system matrix for the color " << color << "...\n" << std::endl;
-        std::cout << "Elements in the color " << color << ": " << std::endl;
 
+        std::shared_ptr<SpectralFE<DIM>> fe_ptr;
+        // Inner loop over the elements of the mesh (can be parallelized)
+        #pragma omp parallel for num_threads(THREADS) private(fe_ptr)
         for(const unsigned int& elem_id : _colorGroups[color])
         {
-            std::cout << elem_id << " ";
-        }
-        std::cout << std::endl;
-        // Inner loop over the elements of the mesh (can be parallelized)
-        #pragma omp parallel num_threads(THREADS) shared(boundary_func, _system_mat, _rhs, _colorGroups, _mesh, _dof, color)
-        {
-
-            // Define the _fe object for each thread
-            SpectralFE<DIM> _fe(_dof.getDeg()[0]);
-            
-            #pragma omp for
-            for(const unsigned int& elem_id : _colorGroups[color])
+            if(!fe_ptr)
             {
-                // Update the current element considered by the spectral _fe local solver
-                _fe.update_current(_mesh.getElems()[elem_id-1]);
-                
-                
-                #pragma omp critical
-                {
-
-                    std::cout << "Updating the element " << elem_id << " by process "<< omp_get_thread_num() << std::endl;
-                }
-                    // Compute the local contribution to the global Stiffeness matrix
-                    this->_localStiff(_fe);
-
-                    std::cout << "Stiffness " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
-                    // Compute the local contribution to the global Mass matrix
-                    this->_localMass(_fe);
-
-                    std::cout << "Mass " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
-                    // Compute the local contribution to the global RHS vector
-                    this->_localRHS(_fe);
-
-                    std::cout << "RHS " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
-                    // Apply the boundary Dirichelet condition
-                    this->_apply_boundary(_mesh.getElems()[elem_id-1], boundary_func);
-
-                    std::cout << "Element " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
-
-                
-                
-
+                fe_ptr = std::make_shared<SpectralFE<DIM>>(_dof.getDeg()[0]);
             }
+            fe_ptr->update_current(_mesh.getElems()[elem_id - 1]);
+            
+            std::cout << "Element " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
+
+            // Compute the local contribution to the global Stiffeness matrix
+            this->_localStiff(fe_ptr);
+
+            std::cout << "Stiffness " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
+            // Compute the local contribution to the global Mass matrix
+            this->_localMass(fe_ptr);
+
+            std::cout << "Mass " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
+            // Compute the local contribution to the global RHS vector
+            this->_localRHS(fe_ptr);
+
+            std::cout << "RHS " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
+            // Apply the boundary Dirichelet condition
+            this->_apply_boundary(_mesh.getElems()[elem_id-1], boundary_func);
 
         }
+
+
+        std::cout << "Finished with color"<< color << std::endl;
+
 
         
         
@@ -197,22 +181,29 @@ const VectorXd& parallelSolverColoring::getSol() const
 //  =========================================================
 
 
-void  parallelSolverColoring::_localStiff(FETools::SpectralFE<DIM>& _fe)
+void  parallelSolverColoring::_localStiff(std::shared_ptr<FETools::SpectralFE<DIM>> fe_ptr)
 {
     
     {
-        MatrixXd LocStiff = ((_fe.J_cell_invT() * _fe.B_cell()).transpose()*(_fe.D_cell()*_fe.detJ())*(_fe.J_cell_invT() * _fe.B_cell()));
+        MatrixXd LocStiff = ((fe_ptr->J_cell_invT() * fe_ptr->B_cell()).transpose()*(fe_ptr->D_cell()*fe_ptr->detJ())*(fe_ptr->J_cell_invT() * fe_ptr->B_cell()));
 
+        #pragma omp critical
+        {
+            std::cout << "Critical region entered by process"<< omp_get_thread_num() << std::endl;
+            std::cout << LocStiff << std::endl;
+        }
+        
+        
         for(unsigned int i = 0; i < LocStiff.rows(); i++)
         {
             // Here compute the boundary flag
-            unsigned short bound = _dof.getPoints()[_dof.getMap()[i][_fe.getCurrent().getId()-1]-1].getBound();
+            unsigned short bound = _dof.getPoints()[_dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1].getBound();
 
             // Here evaluate the boundary condtion
             if(bound)
             {
                 // Update the unordered map just by inserting the diagonal element equal to 1
-                _system_mat.coeffRef(_dof.getMap()[i][_fe.getCurrent().getId()-1]-1, _dof.getMap()[i][_fe.getCurrent().getId()-1]-1)= 1;
+                _system_mat.coeffRef(_dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1, _dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1)= 1;
                 
             }
             else
@@ -220,10 +211,7 @@ void  parallelSolverColoring::_localStiff(FETools::SpectralFE<DIM>& _fe)
                 
                 for(unsigned int j = 0; j <LocStiff.cols(); j++)
                 {
-                    std::cout << "Writing: " << _dof.getMap()[i][_fe.getCurrent().getId()-1]-1 << ", " << _dof.getMap()[j][_fe.getCurrent().getId()-1]-1 << std::endl;
-
-                    _system_mat.coeffRef(_dof.getMap()[i][_fe.getCurrent().getId()-1]-1, _dof.getMap()[j][_fe.getCurrent().getId()-1]-1) += LocStiff(i,j)*_mu.value(_fe.quadrature_point(j,_dof));  
-                        
+                    _system_mat.coeffRef(_dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1, _dof.getMap()[j][fe_ptr->getCurrent().getId()-1]-1) += LocStiff(i,j)*_mu.value(fe_ptr->quadrature_point(j,_dof));  
                 }   
                 
             }
@@ -237,41 +225,41 @@ void  parallelSolverColoring::_localStiff(FETools::SpectralFE<DIM>& _fe)
     
 };
 
-void  parallelSolverColoring::_localMass(FETools::SpectralFE<DIM>& _fe)
+void  parallelSolverColoring::_localMass(std::shared_ptr<FETools::SpectralFE<DIM>> fe_ptr)
 {
     // As for the stiffness code, the local mass matrix is computed and then compressed onto the global matrix
     // using the ID array (_dof.getMap()) in the same way as seen in the serial solver
     if constexpr(DIM == 1)
-        for(unsigned int i =0 ; i< _fe.getNQ()[0]; i++)
+        for(unsigned int i =0 ; i< fe_ptr->getNQ()[0]; i++)
         {
             // And compute the local contributuions by means of the quadrature  weights
-            unsigned int global_index = _dof.getMap()[i][_fe.getCurrent().getId()-1]-1;
+            unsigned int global_index = _dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1;
             // Here compute the boundary flag
-            unsigned short bound = _dof.getPoints()[_dof.getMap()[i][_fe.getCurrent().getId()-1]-1].getBound();
+            unsigned short bound = _dof.getPoints()[_dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1].getBound();
             _system_mat.coeffRef(global_index, global_index) += (bound == 0) * // WRITE THE CONTRIBUTION ONLY IF THE DOF IS NOT ON THE BOUNDARY
-                                                                _fe.getQuad()[0].getW()[i] *
-                                                                (1. / _fe.getJ().coeff(0, 0)) *
-                                                                _sigma.value(_fe.quadrature_point(i, _dof));
+                                                                fe_ptr->getQuad()[0].getW()[i] *
+                                                                (1. / fe_ptr->getJ().coeff(0, 0)) *
+                                                                _sigma.value(fe_ptr->quadrature_point(i, _dof));
         }
     else
-        for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
+        for(unsigned int j = 0; j < fe_ptr->getNQ()[DIM-1]; j++)
         {
-            for (unsigned int i = 0; i < _fe.getNQ()[0]; i++)
+            for (unsigned int i = 0; i < fe_ptr->getNQ()[0]; i++)
             {
                 // And compute the local contributuions by means of the quadrature  weights
-                unsigned int local_ind = (j)*_fe.getNQ()[0] + i;
-                unsigned int global_index = _dof.getMap()[local_ind][_fe.getCurrent().getId() - 1] - 1;
+                unsigned int local_ind = (j)*fe_ptr->getNQ()[0] + i;
+                unsigned int global_index = _dof.getMap()[local_ind][fe_ptr->getCurrent().getId() - 1] - 1;
                 // Here compute the boundary flag
 
-                unsigned short bound = _dof.getPoints()[_dof.getMap()[local_ind][_fe.getCurrent().getId() - 1] - 1].getBound();
+                unsigned short bound = _dof.getPoints()[_dof.getMap()[local_ind][fe_ptr->getCurrent().getId() - 1] - 1].getBound();
 
 
                 _system_mat.coeffRef(global_index, global_index) += (bound == 0) * // WRITE THE CONTRIBUTION ONLY IF THE DOF IS NOT ON THE BOUNDARY
-                                                                    _fe.getQuad()[0].getW()[i] *
-                                                                    (1. / _fe.getJ().coeff(0, 0)) *
-                                                                    _fe.getQuad()[DIM - 1].getW()[j] *
-                                                                    (1. / _fe.getJ().coeff(1, 1)) *
-                                                                    _sigma.value(_fe.quadrature_point(local_ind, _dof));
+                                                                    fe_ptr->getQuad()[0].getW()[i] *
+                                                                    (1. / fe_ptr->getJ().coeff(0, 0)) *
+                                                                    fe_ptr->getQuad()[DIM - 1].getW()[j] *
+                                                                    (1. / fe_ptr->getJ().coeff(1, 1)) *
+                                                                    _sigma.value(fe_ptr->quadrature_point(local_ind, _dof));
 
             }
             
@@ -282,30 +270,30 @@ void  parallelSolverColoring::_localMass(FETools::SpectralFE<DIM>& _fe)
 };
 
 
-void parallelSolverColoring::_localRHS(FETools::SpectralFE<DIM>& _fe)
+void parallelSolverColoring::_localRHS(std::shared_ptr<FETools::SpectralFE<DIM>> fe_ptr)
 {
     // Compute the local RHS vector and compress it onto the global RHS vector using the ID array (_dof.getMap())
     if constexpr(DIM == 1)
-        for(unsigned int i = 0; i < _fe.getNQ()[0]; i++)
+        for(unsigned int i = 0; i < fe_ptr->getNQ()[0]; i++)
         {
-            unsigned int global_index = _dof.getMap()[i][_fe.getCurrent().getId()-1]-1;
-            _rhs(global_index) += _fe.getQuad()[0].getW()[i] *
-                                (1. / _fe.getJ().coeff(0, 0)) *
-                                _f.value(_fe.quadrature_point(i, _dof));
+            unsigned int global_index = _dof.getMap()[i][fe_ptr->getCurrent().getId()-1]-1;
+            _rhs(global_index) += fe_ptr->getQuad()[0].getW()[i] *
+                                (1. / fe_ptr->getJ().coeff(0, 0)) *
+                                _f.value(fe_ptr->quadrature_point(i, _dof));
         }
     else
-        for(unsigned int j = 0; j < _fe.getNQ()[DIM-1]; j++)
+        for(unsigned int j = 0; j < fe_ptr->getNQ()[DIM-1]; j++)
         {
-            for (unsigned int i = 0; i < _fe.getNQ()[0]; i++)
+            for (unsigned int i = 0; i < fe_ptr->getNQ()[0]; i++)
             {
                 // And compute the local contribution by means of the quadrature weights
-                unsigned int local_ind = (j)*_fe.getNQ()[0] + i;
-                unsigned int global_index = _dof.getMap()[local_ind][_fe.getCurrent().getId() - 1] - 1;
-                _rhs(global_index) += _fe.getQuad()[0].getW()[i] *
-                                    (1. / _fe.getJ().coeff(0, 0)) *
-                                    _fe.getQuad()[DIM - 1].getW()[j] *
-                                    (1. / _fe.getJ().coeff(1, 1)) *
-                                    _f.value(_fe.quadrature_point(local_ind, _dof));
+                unsigned int local_ind = (j)*fe_ptr->getNQ()[0] + i;
+                unsigned int global_index = _dof.getMap()[local_ind][fe_ptr->getCurrent().getId() - 1] - 1;
+                _rhs(global_index) += fe_ptr->getQuad()[0].getW()[i] *
+                                    (1. / fe_ptr->getJ().coeff(0, 0)) *
+                                    fe_ptr->getQuad()[DIM - 1].getW()[j] *
+                                    (1. / fe_ptr->getJ().coeff(1, 1)) *
+                                    _f.value(fe_ptr->quadrature_point(local_ind, _dof));
             }   
         }
 

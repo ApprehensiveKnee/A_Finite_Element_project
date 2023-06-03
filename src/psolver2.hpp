@@ -93,10 +93,10 @@ public:
   ~parallelSolver2() = default;
 
 protected:
-  void _apply_boundary(std::array<omp_lock_t,NBLOCKS>& rhs_locks);
-  void _computeStiff(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& mat_locks);
-  void _computeMass(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& mat_locks);
-  void _computeRHS(FETools::SpectralFE<DIM>&, std::array<omp_lock_t,NBLOCKS>& rhs_locks);
+  void _apply_boundary(const Element<DIM>&, const std::map<unsigned int, const Function<DIM> *>&, std::array<omp_lock_t,NBLOCKS>& rhs_locks, const unsigned int& blocksize);
+  void _computeStiff(std::shared_ptr<FETools::SpectralFE<DIM>>, std::array<omp_lock_t,NBLOCKS>& mat_locks, const unsigned int& blocksize);
+  void _computeMass(std::shared_ptr<FETools::SpectralFE<DIM>>, std::array<omp_lock_t,NBLOCKS>& mat_locks, const unsigned int& blocksize);
+  void _computeRHS(std::shared_ptr<FETools::SpectralFE<DIM>>, std::array<omp_lock_t,NBLOCKS>& rhs_locks, const unsigned int& blocksize);
   
   // a method to export the solution and mesh on a VTK file
     void _export(const std::string&, const bool& mesh_option = false) const;

@@ -74,6 +74,8 @@ public:
       _rhs(),
       _sol()
       {}
+
+  
   
   void setup(const std::string&, const bool &option = true) ;
   void assemble();
@@ -89,9 +91,9 @@ public:
 
 protected:
   void _apply_boundary(const Element<DIM>&, const std::map<unsigned int, const Function<DIM> *>&);
-  void _localStiff(FETools::SpectralFE<DIM>&);
-  void _localMass(FETools::SpectralFE<DIM>&);
-  void _localRHS(FETools::SpectralFE<DIM>&);
+  void _localStiff(std::shared_ptr<FETools::SpectralFE<DIM>>);
+  void _localMass(std::shared_ptr<FETools::SpectralFE<DIM>>);
+  void _localRHS(std::shared_ptr<FETools::SpectralFE<DIM>>);
 
   // a method to export the solution and mesh on a VTK file
     void _export(const std::string&, const bool& mesh_option = false) const;
