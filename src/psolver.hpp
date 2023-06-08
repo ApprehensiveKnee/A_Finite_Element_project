@@ -57,8 +57,6 @@ namespace std
 class parallelSolver
 {
 private:
-  static constexpr unsigned short DIM = _DIM;
-  static constexpr unsigned short THREADS = 4;
   //first of all, the mesh that will be saved as a member of solver,
   Mesh<DIM> _mesh;
   // a fe class solver object, to deal with the single elements of the mesh member
@@ -118,7 +116,7 @@ public:
 
   ~parallelSolver() = default;
 
-protected:
+private:
   void _apply_boundary(const Element<DIM>&,std::unordered_map<unsigned int, double>&, const std::map<unsigned int, const Function<DIM> *>&);
   void _localStiff(std::shared_ptr<FETools::SpectralFE<DIM>>, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);
   void _localMass(std::shared_ptr<FETools::SpectralFE<DIM>>, std::unordered_map<std::pair<unsigned int, unsigned int>, double>&);

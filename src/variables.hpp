@@ -7,8 +7,11 @@
 #define VAR
 
 extern inline constexpr double tol= 1.e-16;
+// Degree of the FE spaces, along all possible dimensions
 extern inline constexpr unsigned r = 3;
-extern inline constexpr unsigned short _DIM = 1;
-
+// Dimenstionality of the problem
+extern inline constexpr unsigned short DIM = 2;
+// Number of threads to be used in the parallel implementations
+extern inline constexpr unsigned short THREADS = 4;
 
 #endif

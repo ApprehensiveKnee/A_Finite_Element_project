@@ -42,8 +42,7 @@ using namespace FETools;
 
 class serialSolver
 {
-protected:
-    static constexpr unsigned short DIM = _DIM;
+private:
     //first of all, the mesh that will be saved as a member of solver,
     Mesh<DIM> _mesh;
     // a fe class solver object, to deal with the single elements of the mesh member
@@ -108,7 +107,7 @@ public:
     //destructor
     ~serialSolver() = default;
 
-protected:
+private:
     // the methods compute the local matrix for the current analyzed element
     // and compress it onto the system matrix
     // (plus a method to apply Dirichelet boundary conditions)

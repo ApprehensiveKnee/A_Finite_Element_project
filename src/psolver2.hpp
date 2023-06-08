@@ -31,8 +31,6 @@ using namespace FETools;
 class parallelSolver2
 {
 private:
-  static constexpr unsigned short DIM = _DIM;
-  static constexpr unsigned short THREADS = 4;
   //first of all, the mesh that will be saved as a member of solver,
   Mesh<DIM> _mesh;
   // a fe class solver object, to deal with the single elements of the mesh member
@@ -51,9 +49,6 @@ private:
   const ForcingTerm<DIM> _f;
   const ExactSolution<DIM> _e;
   const functionZero<DIM> _g;
-
-  //then some possible basic global matrixes to help us compute the cosen problem
-  //defined with Eigen support:
 
   // a matrix to store the system matrix
   // In this case, we use the Eigen Matrix Type appositly created for multithreading processing environment
@@ -92,14 +87,14 @@ public:
 
   ~parallelSolver2() = default;
 
-protected:
+private:
   void _apply_boundary(const Element<DIM>&, const std::map<unsigned int, const Function<DIM> *>&, std::array<omp_lock_t,NBLOCKS>& rhs_locks, const unsigned int& blocksize);
   void _computeStiff(std::shared_ptr<FETools::SpectralFE<DIM>>, std::array<omp_lock_t,NBLOCKS>& mat_locks, const unsigned int& blocksize);
   void _computeMass(std::shared_ptr<FETools::SpectralFE<DIM>>, std::array<omp_lock_t,NBLOCKS>& mat_locks, const unsigned int& blocksize);
   void _computeRHS(std::shared_ptr<FETools::SpectralFE<DIM>>, std::array<omp_lock_t,NBLOCKS>& rhs_locks, const unsigned int& blocksize);
   
   // a method to export the solution and mesh on a VTK file
-    void _export(const std::string&, const bool& mesh_option = false) const;
+  void _export(const std::string&, const bool& mesh_option = false) const;
 
     
 };

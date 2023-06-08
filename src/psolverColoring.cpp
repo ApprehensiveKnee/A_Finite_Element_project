@@ -61,7 +61,28 @@ void parallelSolverColoring::setup(const std::string& file_name, const bool &opt
     unsigned int size = _dof.getMap()[_dof.dof_per_cell()-1][_mesh.get_nElems()-1];
     _system_mat.resize(size, size);
     // Use a heuristic to estimate a reasonable value of non zero elements
-    _system_mat.reserve(size);
+    _system_mat.reserve(size*std::log(size));
+
+    // Insert serially the non zero elements in the matrix
+
+    // Loop over the elements of the mesh
+    for(const Element<DIM>& elem : _mesh.getElems())
+    {
+        // Loop over the X DoFs of the element
+        for(unsigned int i = 0; i < _dof.dof_per_cell(); i++)
+        {
+            // Loop over the Y DoFs of the element
+            for(unsigned int j = 0; j < _dof.dof_per_cell(); j++)
+            {
+                // Get the global indices of the DoFs
+                unsigned int row = _dof.getMap()[i][elem.getId()-1]-1;
+                unsigned int col = _dof.getMap()[j][elem.getId()-1]-1;
+                // If the indices are not zero, insert the coefficient in the matrix
+                if(row != 0 && col != 0)
+                    _system_mat.coeffRef(row,col) = 0.;
+            }
+        }
+    }
     _rhs = VectorXd::Zero(size);
     _sol = VectorXd::Zero(size);
     std::cout << "Solver ready..."<<std::endl;
@@ -99,21 +120,12 @@ void parallelSolverColoring::assemble()
                 fe_ptr = std::make_shared<SpectralFE<DIM>>(_dof.getDeg()[0]);
             }
             fe_ptr->update_current(_mesh.getElems()[elem_id - 1]);
-            
-            std::cout << "Element " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
-
             // Compute the local contribution to the global Stiffeness matrix
             this->_localStiff(fe_ptr);
-
-            std::cout << "Stiffness " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
             // Compute the local contribution to the global Mass matrix
             this->_localMass(fe_ptr);
-
-            std::cout << "Mass " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
             // Compute the local contribution to the global RHS vector
             this->_localRHS(fe_ptr);
-
-            std::cout << "RHS " << elem_id << " computed.. by process"<< omp_get_thread_num() << std::endl;
             // Apply the boundary Dirichelet condition
             this->_apply_boundary(_mesh.getElems()[elem_id-1], boundary_func);
 
@@ -132,15 +144,19 @@ void parallelSolverColoring::assemble()
 
 void parallelSolverColoring::solve(const bool& print, std::ostream& out)
 {
-    // to solve the system we use the sovers provided by Eigen;
-    // as reference here we use the BiCGSTAB method:
-    
+    // BiCGSTAB method in parallel configuration:
+    Eigen::setNbThreads(THREADS);
     BiCGSTAB<SparseMatrix<double>> solver;
     solver.compute(_system_mat);
 
     _sol = solver.solve(_rhs);  //solving the system
     if(print)
     {
+        if(solver.info() != Success)
+        {
+            out << "The solver did not converge" << std::endl;
+            return;
+        }
         out << "\nThe BiCGSTAB has reached convergence in:" <<std::endl;
         out << "#iterations: " << solver.iterations() << "\n\n"<< std::endl;
         out << "The solution is:\n"  << std::endl;                                 
@@ -186,13 +202,6 @@ void  parallelSolverColoring::_localStiff(std::shared_ptr<FETools::SpectralFE<DI
     
     {
         MatrixXd LocStiff = ((fe_ptr->J_cell_invT() * fe_ptr->B_cell()).transpose()*(fe_ptr->D_cell()*fe_ptr->detJ())*(fe_ptr->J_cell_invT() * fe_ptr->B_cell()));
-
-        #pragma omp critical
-        {
-            std::cout << "Critical region entered by process"<< omp_get_thread_num() << std::endl;
-            std::cout << LocStiff << std::endl;
-        }
-        
         
         for(unsigned int i = 0; i < LocStiff.rows(); i++)
         {
