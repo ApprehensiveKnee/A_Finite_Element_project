@@ -46,7 +46,7 @@ private:
   // defined with Eigen support:
 
   // a matrix to store the system matrix
-  SparseMatrix<double> _system_mat;
+  SparseMatrix<double, Eigen::RowMajor> _system_mat;
   // a vector to store the right hand side of the system
   VectorXd _rhs;
   // a vector to store the solution
@@ -78,7 +78,7 @@ public:
   void process(const std::string &, const bool &mesh_option = false);
 
   // standard getters
-  const SparseMatrix<double> &getMat() const;
+  const SparseMatrix<double,Eigen::RowMajor> &getMat() const;
   const VectorXd &getRHS() const;
   const VectorXd &getSol() const;
 

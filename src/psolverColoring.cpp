@@ -61,28 +61,28 @@ void parallelSolverColoring::setup(const std::string& file_name, const bool &opt
     unsigned int size = _dof.getMap()[_dof.dof_per_cell()-1][_mesh.get_nElems()-1];
     _system_mat.resize(size, size);
     // Use a heuristic to estimate a reasonable value of non zero elements
-    _system_mat.reserve(size*std::log(size));
+    _system_mat.reserve(size*50);
 
     // Insert serially the non zero elements in the matrix
 
     // Loop over the elements of the mesh
-    for(const Element<DIM>& elem : _mesh.getElems())
-    {
-        // Loop over the X DoFs of the element
-        for(unsigned int i = 0; i < _dof.dof_per_cell(); i++)
-        {
-            // Loop over the Y DoFs of the element
-            for(unsigned int j = 0; j < _dof.dof_per_cell(); j++)
-            {
-                // Get the global indices of the DoFs
-                unsigned int row = _dof.getMap()[i][elem.getId()-1]-1;
-                unsigned int col = _dof.getMap()[j][elem.getId()-1]-1;
-                // If the indices are not zero, insert the coefficient in the matrix
-                if(row != 0 && col != 0)
-                    _system_mat.coeffRef(row,col) = 0.;
-            }
-        }
-    }
+    // for(const Element<DIM>& elem : _mesh.getElems())
+    // {
+    //     // Loop over the X DoFs of the element
+    //     for(unsigned int i = 0; i < _dof.dof_per_cell(); i++)
+    //     {
+    //         // Loop over the Y DoFs of the element
+    //         for(unsigned int j = 0; j < _dof.dof_per_cell(); j++)
+    //         {
+    //             // Get the global indices of the DoFs
+    //             unsigned int row = _dof.getMap()[i][elem.getId()-1]-1;
+    //             unsigned int col = _dof.getMap()[j][elem.getId()-1]-1;
+    //             // If the indices are not zero, insert the coefficient in the matrix
+    //             _system_mat.coeffRef(row,col) = 0.;
+
+    //         }
+    //     }
+    // }
     _rhs = VectorXd::Zero(size);
     _sol = VectorXd::Zero(size);
     std::cout << "Solver ready..."<<std::endl;
@@ -174,7 +174,7 @@ void parallelSolverColoring::process(const std::string & file_name, const bool& 
     return;
 }
 
-const SparseMatrix<double>& parallelSolverColoring::getMat() const
+const SparseMatrix<double,Eigen::RowMajor>& parallelSolverColoring::getMat() const
 {
     return _system_mat;
 }

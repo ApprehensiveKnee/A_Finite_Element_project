@@ -72,8 +72,7 @@ void parallelSolver2::setup(const std::string &file_name, const bool &option)
                 unsigned int row = _dof.getMap()[i][elem.getId() - 1] - 1;
                 unsigned int col = _dof.getMap()[j][elem.getId() - 1] - 1;
                 // If the indices are not zero, insert the coefficient in the matrix
-                if (row != 0 && col != 0)
-                    _system_mat.coeffRef(row, col) = 0.;
+                _system_mat.coeffRef(row, col) = 0.;
             }
         }
     }
