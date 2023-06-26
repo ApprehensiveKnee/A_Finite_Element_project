@@ -7,7 +7,7 @@
 
 The main goal of the project is to implement a solver for some simple <span style="color:darkorange">**Partial Differential Problems in lower dimensions (1 and 2D)**</span>, specifically <span style="color:darkorange">**stationary elliptic PDEs involving multivariate scalar-valued functions using the Spectral Element method**</span>, depicted in CHQZ2[^1]. 
 
-[^1]: C. Canuto, M.Y. Hussaini, A. Quarteroni, T.A. Zang,["Spectral Methods. Fundamentals in Single Domains"](http://dx.doi.org/10.1007/978-3-540-30726-6) Springer Verlag, Berlin Heidelberg New York, 2006.
+[^1]: C. Canuto, M.Y. Hussaini, A. Quarteroni, T.A. Zang,[_"Spectral Methods. Fundamentals in Single Domains"_](http://dx.doi.org/10.1007/978-3-540-30726-6) Springer Verlag, Berlin Heidelberg New York, 2006.
 
 The rectangular meshes (linear in the 1D case) used to analyse the problem are created by modifing the MATLAB script written by prof. Paola Gervasio[^2] and suitably converted into `csv` files form which the code extrapolates the necessary information to compute the approximated solution of the problem considered.
 
