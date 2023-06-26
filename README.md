@@ -66,7 +66,7 @@ To execute the code it is necessary to specify some options. To visualize the li
 -- help
 ```
 
-After launching the code with the desired options, the code will compute the solution of the problem considered on the mesh specified in the `mesh.csv` file inside the `build` directory.
+After launching the code with the desired options, the code will compute the solution of the problem considered on the mesh specified in the homonymous `.vtp` file inside the `build` directory.
 
 
 <br/>
