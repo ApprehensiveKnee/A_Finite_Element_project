@@ -1,0 +1,2 @@
+Here are just some Python scripts I created to help me debug the code while checking for the right contruction of the system matrix and rhs vector.
+There is also a script I used to plot the convergence rates of the errors.

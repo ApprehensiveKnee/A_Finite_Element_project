@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED "ON")
 
 # Set default build type to Release.
 if(NOT CMAKE_BUILD_TYPE OR "${CMAKE_BUILD_TYPE}" STREQUAL "")
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "" FORCE)
 endif()
 message(STATUS)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
@@ -25,14 +25,23 @@ find_package(VTK REQUIRED HINTS $ENV{mkVtkPrefix})
 # Locate eigen
 find_package (Eigen3 3.3 REQUIRED HINTS $ENV{mkEigenPrefix})
 
+# Locate boost
+find_package(Boost REQUIRED COMPONENTS program_options)
+
+# Add the Boost include directories
+include_directories(${Boost_INCLUDE_DIRS})
+
+
 # Add useful compiler flags.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnon-virtual-dtor")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -Wnon-virtual-dtor -fopenmp -fconcepts-diagnostics-depth=3")
 
 
-set(TARGET src/main.cpp src/elements.cpp src/mat_utilities.cpp src/mesh.cpp src/solver.cpp)
+set(TARGET src/main.cpp  src/quadrature.cpp src/solver.cpp src/psolver.cpp src/psolver2.cpp src/psolverColoring.cpp ) 
 add_executable(${CMAKE_PROJECT_NAME} ${TARGET})
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${VTK_LIBRARIES})
 target_link_libraries (${CMAKE_PROJECT_NAME} PRIVATE Eigen3::Eigen)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${Boost_PROGRAM_OPTIONS_LIBRARY})
 vtk_module_autoinit(
   TARGETS ${CMAKE_PROJECT_NAME}
   MODULES ${VTK_LIBRARIES}
