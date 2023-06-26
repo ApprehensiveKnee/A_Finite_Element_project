@@ -7,7 +7,7 @@
 
 The main goal of the project is to implement a solver for some simple <span style="color:darkorange">**Partial Differential Problems in lower dimensions (1 and 2D)**</span>, specifically <span style="color:darkorange">**stationary elliptic PDEs involving multivariate scalar-valued functions using the Spectral Element method**</span>, depicted in CHQZ2[^1]. 
 
-[^1]: C. Canuto, M.Y. Hussaini, A. Quarteroni, T.A. Zang,"Spectral Methods. Fundamentals in Single Domains"Springer Verlag, Berlin Heidelberg New York, 2006.
+[^1]: C. Canuto, M.Y. Hussaini, A. Quarteroni, T.A. Zang,["Spectral Methods. Fundamentals in Single Domains"](http://dx.doi.org/10.1007/978-3-540-30726-6) Springer Verlag, Berlin Heidelberg New York, 2006.
 
 The rectangular meshes (linear in the 1D case) used to analyse the problem are created by modifing the MATLAB script written by prof. Paola Gervasio[^2] and suitably converted into `csv` files form which the code extrapolates the necessary information to compute the approximated solution of the problem considered.
 
@@ -110,7 +110,7 @@ u_ex(x) =
 \end{cases}
 $$
 
-where $ A = - \frac{4}{15}(\frac{1}{2})^\frac{5}{2}$
+where $A = - \frac{4}{15}(\frac{1}{2})^\frac{5}{2}$
 
 
 ### **2D Test Case**
@@ -153,7 +153,7 @@ It is important to notice that this approach implies the necessity to **group th
 >_Even though this is appealing, the algorithm has its overhead. This includes the already discussed need to establish the colouring. However, only the inner loop can be parallelized. All threads should finish processing the element’s inner loop be-
 fore processing elements for the next colour. This requires synchronization. Finally, there is also an overhead connected to the creation and termination of threads for each colour. In the colouring algorithm, the individual threads are created and terminated inside the outer loop over individual colours, but this overhead is typically very small, considering typical assembly times for real problems. Eventually, it can have some minor impact on overhead costs._[^3]
 
-[^3]: _M. Bošanský, B. Patzák, [Parallelization of assembly operations in finite element Method](https://doi.org/10.14311/AP.2020.60.0025)_
+[^3]: _M. Bošanský, B. Patzák, ["Parallelization of assembly operations in finite element Method"](https://doi.org/10.14311/AP.2020.60.0025)_
 
 It is worth noticing that almost all of the parallel code has been implemented with a specific intent to **reduce to the minimum the number of memory accesses**, in an attempt to make up for the overheads due to the managing of threads.
 For such reason, it isn't uncommon to find the parallel version of the code filled with more control pa than the  serial counterpart
