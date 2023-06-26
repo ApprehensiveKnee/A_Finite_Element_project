@@ -26,9 +26,9 @@ using namespace FETools;
 class parallelSolverColoring
 {
 private:
-  static constexpr unsigned short MAX_COLORS = 4;      // Please note that, for a simple cases such as the ones considered, for a rectangular mesh,
-                                                       // the maximum number of possible colors has been chosen considering the maximum number of elements
-                                                       // sharing the same node, which is 4 in the worst case...
+  static constexpr unsigned short MAX_COLORS = 4; // Please note that, for a simple cases such as the ones considered, for a rectangular mesh,
+  // the maximum number of possible colors has been chosen considering the maximum number of elements
+  // sharing the same node, which is 4 in the worst case...
   std::vector<std::vector<unsigned int>> _colorGroups; // A vector of vectors to store the elements of the mesh grouped by color...
 
   // the mesh that will be saved as a member of solver...
@@ -46,7 +46,7 @@ private:
   // defined with Eigen support:
 
   // a matrix to store the system matrix
-  SparseMatrix<double, Eigen::RowMajor> _system_mat;
+  SparseMatrix<double> _system_mat;
   // a vector to store the right hand side of the system
   VectorXd _rhs;
   // a vector to store the solution
@@ -78,7 +78,7 @@ public:
   void process(const std::string &, const bool &mesh_option = false);
 
   // standard getters
-  const SparseMatrix<double,Eigen::RowMajor> &getMat() const;
+  const SparseMatrix<double> &getMat() const;
   const VectorXd &getRHS() const;
   const VectorXd &getSol() const;
 

@@ -11,18 +11,14 @@ void parallelSolver2::setup(const std::string &file_name, const bool &option)
         if constexpr (DIM == 1)
         {
             _mesh.setMesh_csv(file_name, _dof.getDeg()[0] + 1);
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
 
         // 2D test case
         else
         {
             _mesh.setMesh_csv(file_name, _dof.getDeg()[0] + 1, _dof.getDeg()[DIM - 1] + 1);
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
     }
 
@@ -33,18 +29,14 @@ void parallelSolver2::setup(const std::string &file_name, const bool &option)
         if constexpr (DIM == 1)
         {
             _mesh.genMesh({0., 1.}, 10, _dof.getDeg()[0] + 1);
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
 
         // 2D test case
         else
         {
             _mesh.genMesh({0., 1.}, {0., 1.}, {10, 10}, {_dof.getDeg()[0] + 1, _dof.getDeg()[DIM - 1] + 1});
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
     }
     else
@@ -54,7 +46,6 @@ void parallelSolver2::setup(const std::string &file_name, const bool &option)
     // Then initialise the algebraic structures
     unsigned int size = _dof.getMap()[_dof.dof_per_cell() - 1][_mesh.get_nElems() - 1];
     _system_mat.resize(size, size);
-    // Use a heuristic to estimate a reasonable value of non zero elements
     _system_mat.reserve(size * std::log(size));
 
     // Insert serially the non zero elements in the matrix: this passage is necessary for the last two versions
@@ -68,10 +59,8 @@ void parallelSolver2::setup(const std::string &file_name, const bool &option)
             // Loop over the Y DoFs of the element
             for (unsigned int j = 0; j < _dof.dof_per_cell(); j++)
             {
-                // Get the global indices of the DoFs
                 unsigned int row = _dof.getMap()[i][elem.getId() - 1] - 1;
                 unsigned int col = _dof.getMap()[j][elem.getId() - 1] - 1;
-                // If the indices are not zero, insert the coefficient in the matrix
                 _system_mat.coeffRef(row, col) = 0.;
             }
         }
@@ -115,13 +104,14 @@ void parallelSolver2::assemble()
     }
 
     std::cout << "=================================================================" << std::endl;
-    std::cout << " Starting parallel computation of system matrix and RHS vector...\n - " << std::endl;
+    std::cout << "Starting parallel computation of system matrix and RHS vector...\n " << std::end;
+    std::cout << "-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_ " << std::endl;
 
     std::shared_ptr<SpectralFE<DIM>> fe_ptr;
     // Define the blocksize, using the NBLOCKS macro
     unsigned int blocksize = (_system_mat.rows() + NBLOCKS - 1) / NBLOCKS;
 
-// Generate threads
+    // Generate threads
 #pragma omp parallel for num_threads(THREADS) private(fe_ptr)
     for (const Element<DIM> &elem : _mesh.getElems())
     {
@@ -132,20 +122,13 @@ void parallelSolver2::assemble()
         }
         fe_ptr->update_current(elem);
 
-        // Compute the local contribution to the global Stiffeness matrix
         this->_computeStiff(fe_ptr, mat_locks, blocksize);
-
-        // Compute the local contribution to the global Mass matrix
         this->_computeMass(fe_ptr, mat_locks, blocksize);
-
-        // Compute the local contribution to the global RHS vector
         this->_computeRHS(fe_ptr, rhs_locks, blocksize);
-
-        // Apply the boundary Dirichelet condition
         this->_apply_boundary(elem, boundary_func, rhs_locks, blocksize);
     }
 
-    std::cout << " System matrix and RHS vector computed." << std::endl;
+    std::cout << "System matrix and RHS vector computed." << std::endl;
 
     // Destroy the locks
     for (omp_lock_t &blocklock : mat_locks)
@@ -187,14 +170,14 @@ void parallelSolver2::solve(const bool &print, std::ostream &out)
     std::cout << "\nSolution computed in #iterations " << solver.iterations() << ".\n"
               << std::endl;
 
+    std::cout << "=================================================================" << std::endl;
+
     return;
 }
 
 void parallelSolver2::process(const std::string &file_name, const bool &mesh_option)
 {
     this->_export(file_name, mesh_option);
-    // this->_errorL2(true);
-    // this->_errorH1(true);
     return;
 }
 
@@ -226,11 +209,8 @@ void parallelSolver2::_computeStiff(std::shared_ptr<FETools::SpectralFE<DIM>> fe
     for (unsigned int i = 0; i < LocStiff.rows(); i++)
     {
         unsigned int global_index_x = _dof.getMap()[i][fe_ptr->getCurrent().getId() - 1] - 1;
-        // Here compute the boundary flag
         unsigned short bound = _dof.getPoints()[global_index_x].getBound();
-        // Compute the block index for the lock to be queried
         unsigned short l_i = global_index_x / blocksize;
-        // std::cout << "l_i: " << l_i<< std::endl;
 
         // Here evaluate the boundary condtion
         if (bound)
@@ -430,7 +410,6 @@ void parallelSolver2::_export(const std::string &file_name, const bool &mesh_opt
 
     if constexpr (DIM == 1)
     {
-        std::cout << "Nodes" << std::endl;
         // Define the points of the mesh
         for (const Point<DIM> &node : _dof.getPoints())
         {

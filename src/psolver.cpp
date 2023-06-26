@@ -11,18 +11,14 @@ void parallelSolver::setup(const std::string &file_name, const bool &option)
         if constexpr (DIM == 1)
         {
             _mesh.setMesh_csv(file_name, _dof.getDeg()[0] + 1);
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
 
         // 2D test case
         else
         {
             _mesh.setMesh_csv(file_name, _dof.getDeg()[0] + 1, _dof.getDeg()[DIM - 1] + 1);
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
     }
 
@@ -33,18 +29,14 @@ void parallelSolver::setup(const std::string &file_name, const bool &option)
         if constexpr (DIM == 1)
         {
             _mesh.genMesh({0., 1.}, 10, _dof.getDeg()[0] + 1);
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
 
         // 2D test case
         else
         {
             _mesh.genMesh({0., 1.}, {0., 1.}, {10, 10}, {_dof.getDeg()[0] + 1, _dof.getDeg()[DIM - 1] + 1});
-            //_mesh.printMesh();
             _dof.genPoints(_mesh);
-            //_dof.printPoints();
         }
     }
     else
@@ -81,7 +73,7 @@ void parallelSolver::assemble()
 
     std::shared_ptr<SpectralFE<DIM>> fe_ptr;
 
-// Generate threads
+    // Generate threads
 #pragma omp parallel num_threads(THREADS) shared(boundary_func) private(fe_ptr)
     {
 
@@ -97,7 +89,9 @@ void parallelSolver::assemble()
         // to add a new element to the vector for every non-zero update of an element of the matrix
         // We then loop over the vectors, reading the correspoing element of the global matrix to be uploaded.
         // Hopefully, since the vectors are data structures optimized for looping, the contiguous accesses in memory
-        // will make up fo the presence of more elements
+        // will make up for the presence of more elements
+        // Still this approach would also require to come up with a way to determine to which element of the matrix
+        // a certain element of the vector shall be compressed on.
 
         // Store the global index of the elements considered by the thread in a private vector
         std::vector<unsigned int> local_elems(0);
@@ -108,7 +102,7 @@ void parallelSolver::assemble()
             std::cout << " Starting parallel computation of system matrix and RHS vector...\n - " << std::endl;
         }
 
-// Loop over the elements of the mesh
+        // Loop over the elements of the mesh
 #pragma omp for
         for (const Element<DIM> &elem : _mesh.getElems())
         {
@@ -122,27 +116,15 @@ void parallelSolver::assemble()
             // Push the index of the element locally considered at the end of the local_elems vector
             local_elems.emplace_back(elem.getId());
 
-            // Compute the local contribution to the global Stiffeness matrix
             this->_localStiff(fe_ptr, mat_entries);
-
-            // Compute the local contribution to the global Mass matrix
             this->_localMass(fe_ptr, mat_entries);
-
-            // Compute the local contribution to the global RHS vector
             this->_localRHS(fe_ptr, rhs_entries);
-
-            // Apply the boundary Dirichelet condition
             this->_apply_boundary(elem, rhs_entries, boundary_func);
-
-            // After the parallel computational part, we insert the elements stored in the
-            // unordered map serially into the global system and rhs vector
-
-            // To do so, we use a pragma critical directive
         }
 
 #pragma omp single
         {
-            std::cout << " System matrix and RHS vector computed.\n          -          \nStarting serial writing... \n - " << std::endl;
+            std::cout << "System matrix and RHS vector computed.\n-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_\nStarting serial writing... \n - " << std::endl;
         }
 
         // Once we are done with all the computation, serially load the values of the global matrix stored inside
@@ -175,8 +157,6 @@ void parallelSolver::assemble()
 
                             unsigned int global_index_y = _dof.getMap()[p][elem.getId() - 1] - 1;
                             // Otherwise, access all the elements on the row
-
-                            // std::cout << " Key: " << global_index_x << ", " << global_index_y << std::endl;
                             _system_mat.coeffRef(global_index_x, global_index_y) += mat_entries.at(std::make_pair(global_index_x, global_index_y));
                             mat_entries.at(std::make_pair(global_index_x, global_index_y)) = 0;
                         }
@@ -297,9 +277,6 @@ void parallelSolver::_localStiff(std::shared_ptr<FETools::SpectralFE<DIM>> fe_pt
 
 void parallelSolver::_localMass(std::shared_ptr<FETools::SpectralFE<DIM>> fe_ptr, std::unordered_map<std::pair<unsigned int, unsigned int>, double> &mat_entries)
 {
-
-    // As for the local mass, this will only bring about its contribution onto the digonal of the system matrix.
-    // We compute it in the following way...
 
     // Loop over the quadrature points of the current element
 
@@ -447,7 +424,6 @@ void parallelSolver::_export(const std::string &file_name, const bool &mesh_opti
 
     if constexpr (DIM == 1)
     {
-        std::cout << "Nodes" << std::endl;
         // Define the points of the mesh
         for (const Point<DIM> &node : _dof.getPoints())
         {
