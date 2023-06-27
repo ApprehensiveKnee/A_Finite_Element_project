@@ -15,7 +15,7 @@ The rectangular meshes (linear in the 1D case) used to analyse the problem are c
 
 The solution is then written onto a `.vtp` file and can be handled with visualization softwares such as ParaView.
 
-It's worth mentioning the premises of the Spectral Element method, i.e. the compuation of the solution on the mesh is carried out in a **matrix free** way: while considering the diffent elements and computing their specific contribution on the structure of the gloabl system matrix, we avoid explicitly building the local matrix but, instead, we exploit the local stiffness and mass matrix of the reference element $[-1,1]\times[-1,1]$ and then apply the transformation to the specific element of the mesh considered (such trasformation is performed as the algebraic product between matrixes).
+It's worth mentioning the premises of the Spectral Element method, i.e. the compuation of the solution on the mesh is carried out in a **matrix free** way: while considering the diffent elements and computing their specific contribution on the structure of the global system matrix, we avoid explicitly building the local matrix but, instead, we exploit the local stiffness and mass matrix of the reference element $[-1,1]\times[-1,1]$ and then apply the transformation to the specific element of the mesh considered (such trasformation is performed as the algebraic product between matrixes).
 
 <br/>
 

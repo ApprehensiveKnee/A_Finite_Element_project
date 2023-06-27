@@ -104,7 +104,7 @@ void parallelSolver2::assemble()
     }
 
     std::cout << "=================================================================" << std::endl;
-    std::cout << "Starting parallel computation of system matrix and RHS vector...\n " << std::end;
+    std::cout << "Starting parallel computation of system matrix and RHS vector...\n " << std::endl;
     std::cout << "-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_ " << std::endl;
 
     std::shared_ptr<SpectralFE<DIM>> fe_ptr;
