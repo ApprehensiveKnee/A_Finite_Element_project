@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
                 solver.solve();
                 end = std::chrono::high_resolution_clock::now();
                 elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                std::cout << "Parallel assembly and solve time with VERSION == 1: " << elapsed.count() << " ms" << std::endl;
+                std::cout << "Parallel assembly and solve time with VERSION == 0: " << elapsed.count() << " ms" << std::endl;
                 solver.process(meshFile, true);
             }
             else if (version == 1)
