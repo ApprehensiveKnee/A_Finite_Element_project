@@ -1,0 +1,32 @@
+# Doxyfile Configuration File
+
+# Project information
+PROJECT_NAME           = A_Finite_Element_Project
+PROJECT_NUMBER         = 1.0
+OUTPUT_DIRECTORY       = /home/jellyfish/shared-folder/Projects/A_Finite_Element_project/build
+
+# Source code
+INPUT                  = /home/jellyfish/shared-folder/Projects/A_Finite_Element_project/src
+RECURSIVE              = YES
+
+# Output format
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+# Class diagrams
+UML_LOOK               = YES
+UML_LIMIT_NUM_FIELDS   = 20
+TEMPLATE_RELATIONS     = YES
+
+# Graphical hierarchy
+HAVE_DOT               = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+
+# Additional configuration options
+# ...
+
