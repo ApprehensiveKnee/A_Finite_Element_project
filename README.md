@@ -1,6 +1,6 @@
 # A Finite Element Project
 
-![]([https://github.com/ApprehensiveKnee/A_Finite_Element_project/blob/main/img/sample_solution.gif])
+![](https://github.com/ApprehensiveKnee/A_Finite_Element_project/blob/main/img/sample_solution.gif)
 
 ## The blueprint
 ---
