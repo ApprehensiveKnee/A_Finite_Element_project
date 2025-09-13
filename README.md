@@ -37,7 +37,7 @@ Finally, `Boost` **libraries are required** for option parsing to properly start
 Some assuptions and generality restrictions  were taken along the way, to simplify the coding process:
 
 1.  The project was carried out with the intention of preserving the generality in dimensions, degree and number of quadrature nodes per cell considered - this is why most of the classes and objects defined are strongly dependent on some global constant parameters.
-Yet along the development of the code, some assumpions where taken:
+Yet along the development of the code, some assumpions were taken:
     - Different classes are endowed with a member (typically an array) to store the degree of the finite element space used along each considered dimension indipendenlty. Nonetheless, the <span style="color:darkorange">degree **r** </span> of the finite element space used is supposed to be the same for both $x$ an $y$ directions (in the 2D case): it is possible to change it in the `variables.hpp` file, along with the <span style="color:darkorange">dimension of the problem **DIM**</span>.
 
     - The same holds true for the number of quadrature points along the two directions, set to be equal to $r$ (A total of $r+1$ points along each side of each cell).
@@ -136,7 +136,7 @@ $$u_{ex}(x, y) = sin(2\pi x) sin(4\pi y)$$
 ## The parallel code
 ---
 The parallelisation was carried out using OpenMP:
-<span style="color:darkorange">_**three main approaches**_</span> where considered when parallelising the code, all of them centered around the assembly phase of global system matrix.
+<span style="color:darkorange">_**three main approaches**_</span> were considered when parallelising the code, all of them centered around the assembly phase of global system matrix.
 
 <span style="color:orange">**PLEASE NOTE**</span>: For the parallel version, computation was also carried out in a parallel way. For this, the parallel version of the corresponding Eigen iterative solving method was used.
 
